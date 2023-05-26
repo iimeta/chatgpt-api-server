@@ -13,6 +13,7 @@ type ChatgptUser struct {
 	*cool.Model
 	UserToken  string     `gorm:"column:userToken;not null;comment:UserToken" json:"userToken"`
 	ExpireTime *time.Time `gorm:"column:expireTime;not null;comment:过期时间" json:"expireTime"`
+	IsPlus     bool       `gorm:"column:isPlus;comment:PLUS;default:0" json:"isPlus"`
 	Remark     string     `gorm:"column:remark;comment:备注" json:"remark"`
 }
 
