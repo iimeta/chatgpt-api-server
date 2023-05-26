@@ -3,6 +3,7 @@ package main
 import (
 	_ "chatgpt-api-server/internal/packed"
 
+	_ "github.com/cool-team-official/cool-admin-go/contrib/drivers/mysql"
 	_ "github.com/cool-team-official/cool-admin-go/contrib/drivers/sqlite"
 
 	_ "chatgpt-api-server/modules"
