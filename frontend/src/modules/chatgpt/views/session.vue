@@ -61,7 +61,11 @@ const Upsert = useUpsert({
 				}
 			}
 		},
-		{ label: "官方session", prop: "officialSession", component: { name: "el-input" } },
+		{
+			label: "官方session",
+			prop: "officialSession",
+			component: { name: "el-input", props: { type: "textarea", rows: 4 } }
+		},
 		{
 			label: "备注",
 			prop: "remark",
