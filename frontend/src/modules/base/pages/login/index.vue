@@ -5,7 +5,12 @@
 				<img src="/logo.png" alt="Logo" />
 				<span>{{ app.info.name }}</span>
 			</div>
-			<p class="desc">一款快速开发后台权限管理系统</p>
+			<p class="desc">
+				技术支持
+				<el-link href="https://xyhelper.com.cn" target="_blank" type="success"
+					>XYHELPER</el-link
+				>
+			</p>
 
 			<el-form label-position="top" class="form" :disabled="saving">
 				<el-form-item label="用户名">

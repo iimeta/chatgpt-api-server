@@ -43,4 +43,7 @@ if [ "$REMOTE_CONTAINERS" = "true" ]; then
     #     ./gf install -y &&
     #     rm ./gf
 
+    #  安装前端依赖
+    cd frontend && yarn install && cd ..
+
 fi
