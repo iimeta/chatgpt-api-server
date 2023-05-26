@@ -33,8 +33,7 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 	if param["officialSession"] == "" || param["officialSession"] == nil {
 		g.Log().Debug(ctx, "ChatgptSessionService.ModifyAfter", "officialSession is empty")
 		getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
-		g.Client().SetHeader()
-		sessionVar := g.Client().SetHeader("authkey",config.AUTHKEY().PostVar(ctx, getSessionUrl, g.Map{
+		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
 			"username": param["email"],
 			"password": param["password"],
 		})
