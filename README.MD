@@ -6,7 +6,7 @@
 
 ```yaml
 # 接入网关地址
-CHATPROXY: "https://chatproxy.xyhelper.cn"
+CHATPROXY: "https://demoproxy.xyhelper.cn"
 # 接入网关的authkey
 AUTHKEY: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 # 是否限制每个用户只能同时发起一个会话

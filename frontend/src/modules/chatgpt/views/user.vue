@@ -33,7 +33,48 @@ import { useCrud, useTable, useUpsert } from "@cool-vue/crud";
 import { useCool } from "/@/cool";
 import { v4 as uuidv4 } from "uuid";
 const { service } = useCool();
-
+const shortcuts = [
+	{
+		text: "7天后",
+		value: () => {
+			const date = new Date();
+			date.setTime(date.getTime() + 3600 * 1000 * 24 * 7);
+			return date;
+		}
+	},
+	{
+		text: "30天后",
+		value: () => {
+			const date = new Date();
+			date.setTime(date.getTime() + 3600 * 1000 * 24 * 30);
+			return date;
+		}
+	},
+	{
+		text: "90天后",
+		value: () => {
+			const date = new Date();
+			date.setTime(date.getTime() + 3600 * 1000 * 24 * 90);
+			return date;
+		}
+	},
+	{
+		text: "180天后",
+		value: () => {
+			const date = new Date();
+			date.setTime(date.getTime() + 3600 * 1000 * 24 * 180);
+			return date;
+		}
+	},
+	{
+		text: "365天后",
+		value: () => {
+			const date = new Date();
+			date.setTime(date.getTime() + 3600 * 1000 * 24 * 365);
+			return date;
+		}
+	}
+];
 // cl-upsert 配置
 const Upsert = useUpsert({
 	items: [
@@ -43,7 +84,7 @@ const Upsert = useUpsert({
 			prop: "expireTime",
 			component: {
 				name: "el-date-picker",
-				props: { type: "datetime", valueFormat: "YYYY-MM-DD HH:mm:ss" }
+				props: { type: "datetime", valueFormat: "YYYY-MM-DD HH:mm:ss", shortcuts }
 			},
 			required: true
 		},
@@ -76,13 +117,13 @@ const Upsert = useUpsert({
 const Table = useTable({
 	columns: [
 		{ type: "selection" },
-		{ label: "id", prop: "id" },
-		{ label: "创建时间", prop: "createTime" },
-		{ label: "更新时间", prop: "updateTime" },
-		{ label: "UserToken", prop: "userToken" },
-		{ label: "过期时间", prop: "expireTime" },
-		{ label: "PLUS", prop: "isPlus", component: { name: "cl-switch" } },
-		{ label: "备注", prop: "remark", showOverflowTooltip: true },
+		{ label: "id", prop: "id", sortable: true },
+		{ label: "创建时间", prop: "createTime", sortable: true },
+		{ label: "更新时间", prop: "updateTime", sortable: true },
+		{ label: "UserToken", prop: "userToken", sortable: true },
+		{ label: "过期时间", prop: "expireTime", sortable: true },
+		{ label: "PLUS", prop: "isPlus", component: { name: "cl-switch" }, sortable: true },
+		{ label: "备注", prop: "remark", showOverflowTooltip: true, sortable: true },
 		{ type: "op", buttons: ["edit", "delete"] }
 	]
 });

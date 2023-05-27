@@ -93,6 +93,7 @@ func Conversation(r *ghttp.Request) {
 	defer resp.Close()
 	if resp.StatusCode == 200 && resp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
 		conversationId := ""
+		modelSlug := ""
 		decoder := eventsource.NewDecoder(resp.Response.Body)
 		for {
 			event, err := decoder.Decode()
@@ -113,13 +114,20 @@ func Conversation(r *ghttp.Request) {
 				break
 			}
 			conversation_id := gjson.New(text).Get("conversation_id").String()
+			model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
+
 			// g.Log().Debug(ctx, "conversation_id", conversation_id)
 			if conversation_id != "" {
 				conversationId = conversation_id
 			}
+			if model_slug != "" {
+				modelSlug = model_slug
+			}
 			r.Response.Writefln("data: %s\n\n", text)
 			r.Response.Flush()
 		}
+		g.Log().Debug(ctx, "conversationId", conversationId)
+		g.Log().Debug(ctx, "modelSlug", modelSlug)
 		// 如果请求的会话ID与返回的会话ID不一致，说明是新的会话，需要插入数据库
 		if reqJson.Get("conversation_id").String() != conversationId {
 			cool.DBM(model.NewChatgptConversation()).Insert(g.Map{

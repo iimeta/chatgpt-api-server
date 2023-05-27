@@ -29,6 +29,16 @@ func NewChatgptUserService() *ChatgptUserService {
 	return &ChatgptUserService{
 		&cool.Service{
 			Model: model.NewChatgptUser(),
+			NotNullKey: g.MapStrStr{
+				"userToken":  "UserToken不能为空",
+				"expireTime": "过期时间不能为空",
+			},
+			UniqueKey: g.MapStrStr{
+				"userToken": "UserToken不能重复",
+			},
+			PageQueryOp: &cool.QueryOp{
+				FieldEQ: []string{"userToken", "remark"},
+			},
 		},
 	}
 }

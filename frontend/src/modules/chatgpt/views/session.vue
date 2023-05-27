@@ -62,7 +62,7 @@ const Upsert = useUpsert({
 			}
 		},
 		{
-			label: "官方session",
+			label: "session",
 			prop: "officialSession",
 			component: { name: "el-input", props: { type: "textarea", rows: 4 } }
 		},
@@ -79,14 +79,19 @@ const Table = useTable({
 	columns: [
 		{ type: "selection" },
 		{ label: "id", prop: "id" },
-		{ label: "创建时间", prop: "createTime" },
-		{ label: "更新时间", prop: "updateTime" },
-		{ label: "邮箱", prop: "email" },
-		{ label: "密码", prop: "password" },
-		{ label: "状态", prop: "status", component: { name: "cl-switch" } },
-		{ label: "PLUS", prop: "isPlus", component: { name: "cl-switch" } },
-		{ label: "官方session", prop: "officialSession", showOverflowTooltip: true },
-		{ label: "备注", prop: "remark", showOverflowTooltip: true },
+		{ label: "创建时间", prop: "createTime", sortable: true },
+		{ label: "更新时间", prop: "updateTime", sortable: true },
+		{ label: "邮箱", prop: "email", sortable: true },
+		{ label: "密码", prop: "password", sortable: true },
+		{ label: "状态", prop: "status", component: { name: "cl-switch" }, sortable: true },
+		{ label: "PLUS", prop: "isPlus", component: { name: "cl-switch" }, sortable: true },
+		{
+			label: "session",
+			prop: "officialSession",
+			showOverflowTooltip: true,
+			sortable: true
+		},
+		{ label: "备注", prop: "remark", showOverflowTooltip: true, sortable: true },
 		{ type: "op", buttons: ["edit", "delete"] }
 	]
 });
