@@ -12,6 +12,11 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/gmutex"
+)
+
+var (
+	USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
 )
 
 func Conversation(r *ghttp.Request) {
@@ -35,6 +40,22 @@ func Conversation(r *ghttp.Request) {
 	// 如果 sessionPair 为空，返回 500
 	if sessionPair == nil {
 		r.Response.WriteStatusExit(500)
+	}
+	// 如果配置了  USERTOKENLOCK ,则加锁限制每个用户只能有一个会话并发
+	if config.USERTOKENLOCK(ctx) {
+		g.Log().Debug(ctx, "USERTOKENLOCK", config.USERTOKENLOCK(ctx))
+		// 如果 USERTOKENLOCKMAP 中没有这个用户的锁，则创建一个
+		if _, ok := USERTOKENLOCKMAP[userToken]; !ok {
+			USERTOKENLOCKMAP[userToken] = gmutex.New()
+		}
+		// 加锁
+		USERTOKENLOCKMAP[userToken].Lock()
+		// 延迟解锁
+		defer func() {
+			// 延时1秒
+			time.Sleep(time.Second)
+			USERTOKENLOCKMAP[userToken].Unlock()
+		}()
 	}
 
 	// 加锁 防止并发
