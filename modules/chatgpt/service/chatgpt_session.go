@@ -5,6 +5,7 @@ import (
 	"chatgpt-api-server/modules/chatgpt/model"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -36,6 +37,7 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
 			"username": param["email"],
 			"password": param["password"],
+			"authkey":  config.AUTHKEY(ctx),
 		})
 		sessionJson := gjson.New(sessionVar)
 		if sessionJson.Get("accessToken").String() == "" {
@@ -48,5 +50,27 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 		})
 		return
 	}
+	return
+}
+
+// GetSessionByUserToken 根据userToken获取session
+func (s *ChatgptSessionService) GetSessionByUserToken(ctx g.Ctx, userToken string, conversationId string) (record gdb.Record, err error) {
+	if conversationId != "" {
+		rec, err := cool.DBM(model.NewChatgptConversation()).Where(g.Map{
+			"conversationId": conversationId,
+			"userToken":      userToken,
+		}).One()
+		if err != nil {
+			return nil, err
+		}
+		if rec.IsEmpty() {
+			return nil, nil
+		}
+		email := rec["email"].String()
+		record, err = cool.DBM(s.Model).Where("email=?", email).One()
+		return record, err
+	}
+	record, err = cool.DBM(s.Model).Where("status=1").OrderRandom().One()
+
 	return
 }

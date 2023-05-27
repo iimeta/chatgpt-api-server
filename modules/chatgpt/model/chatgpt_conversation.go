@@ -9,9 +9,9 @@ const TableNameChatgptConversation = "chatgpt_conversation"
 // ChatgptConversation mapped from table <chatgpt_conversation>
 type ChatgptConversation struct {
 	*cool.Model
-	User           string `gorm:"index;column:user;not null;comment:用户" json:"user"`
-	ConversationId string `gorm:"index;column:conversationId;not null;comment:conversationId" json:"conversationId"`
-	TokenId        int    `gorm:"index;column:tokenId;not null;comment:tokenId" json:"tokenId"`
+	UserToken      string `gorm:"index;column:userToken;not null;comment:用户Token" json:"userToken"`
+	Email          string `gorm:"column:email;not null;comment:邮箱" json:"email"`
+	ConversationId string `gorm:"column:conversationId;not null;comment:会话ID" json:"conversationId"`
 }
 
 // TableName ChatgptConversation's table name
