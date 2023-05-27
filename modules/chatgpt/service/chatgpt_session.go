@@ -54,7 +54,7 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 }
 
 // GetSessionByUserToken 根据userToken获取session
-func (s *ChatgptSessionService) GetSessionByUserToken(ctx g.Ctx, userToken string, conversationId string) (record gdb.Record, err error) {
+func (s *ChatgptSessionService) GetSessionByUserToken(ctx g.Ctx, userToken string, conversationId string, isPlusModel bool) (record gdb.Record, err error) {
 	if conversationId != "" {
 		rec, err := cool.DBM(model.NewChatgptConversation()).Where(g.Map{
 			"conversationId": conversationId,
@@ -70,7 +70,13 @@ func (s *ChatgptSessionService) GetSessionByUserToken(ctx g.Ctx, userToken strin
 		record, err = cool.DBM(s.Model).Where("email=?", email).One()
 		return record, err
 	}
-	record, err = cool.DBM(s.Model).Where("status=1").OrderRandom().One()
+	m := cool.DBM(s.Model).Where("status=1")
+	if isPlusModel {
+		m = m.Where("isPlus=1")
+	} else {
+		m = m.Where("isPlus=0")
+	}
+	record, err = m.OrderRandom().One()
 
 	return
 }

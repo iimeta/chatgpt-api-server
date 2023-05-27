@@ -31,9 +31,19 @@ func Conversation(r *ghttp.Request) {
 		r.Response.WriteStatusExit(401)
 	}
 	reqJson := gjson.New(r.GetBody())
-	g.Dump(reqJson)
+	g.Log().Debug(ctx, userToken, reqJson)
+	reqModel := reqJson.Get("model").String()
+	var isPlusModel bool
+	if config.PlusModels.Contains(reqModel) {
+		isPlusModel = true
+	} else if config.FreeModels.Contains(reqModel) {
+		isPlusModel = false
+	} else {
+		reqJson.Set("model", config.DefaultModel)
+		isPlusModel = false
+	}
 
-	sessionPair, code, err := ChatgptUserService.GetSessionPair(ctx, userToken, reqJson.Get("conversation_id").String())
+	sessionPair, code, err := ChatgptUserService.GetSessionPair(ctx, userToken, reqJson.Get("conversation_id").String(), isPlusModel)
 	if err != nil {
 		r.Response.WriteStatusExit(code)
 	}
@@ -49,13 +59,18 @@ func Conversation(r *ghttp.Request) {
 			USERTOKENLOCKMAP[userToken] = gmutex.New()
 		}
 		// 加锁
-		USERTOKENLOCKMAP[userToken].Lock()
-		// 延迟解锁
-		defer func() {
-			// 延时1秒
-			time.Sleep(time.Second)
-			USERTOKENLOCKMAP[userToken].Unlock()
-		}()
+		if USERTOKENLOCKMAP[userToken].TryLock() {
+			// 延迟解锁
+			defer func() {
+				// 延时1秒
+				time.Sleep(time.Second)
+				USERTOKENLOCKMAP[userToken].Unlock()
+			}()
+		} else {
+			g.Log().Info(ctx, userToken, "触发USERTOKENLOCK,返回429")
+			r.Response.WriteStatusExit(429)
+			return
+		}
 	}
 
 	// 加锁 防止并发

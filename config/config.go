@@ -1,6 +1,9 @@
 package config
 
-import "github.com/gogf/gf/v2/frame/g"
+import (
+	"github.com/gogf/gf/v2/container/garray"
+	"github.com/gogf/gf/v2/frame/g"
+)
 
 func CHATPROXY(ctx g.Ctx) string {
 	return g.Cfg().MustGetWithEnv(ctx, "CHATPROXY").String()
@@ -13,4 +16,19 @@ func AUTHKEY(ctx g.Ctx) string {
 
 func USERTOKENLOCK(ctx g.Ctx) bool {
 	return g.Cfg().MustGetWithEnv(ctx, "USERTOKENLOCK").Bool()
+}
+
+var (
+	DefaultModel = "text-davinci-002-render-sha"
+	FreeModels   = garray.NewStrArray()
+	PlusModels   = garray.NewStrArray()
+)
+
+func init() {
+	FreeModels.Append("text-davinci-002-render-sha")
+	FreeModels.Append("text-davinci-002-render-sha-mobile")
+	PlusModels.Append("gpt-4")
+	PlusModels.Append("gpt-4-browsing")
+	PlusModels.Append("gpt-4-plugins")
+	PlusModels.Append("gpt-4-mobile")
 }
