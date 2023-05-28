@@ -1,6 +1,6 @@
 
 server:
-  address:     ":8001"
+  # address:     ":8001"
   serverRoot: "resource/public"
   clientMaxBodySize: 104857600  # 100MB in bytes 100*1024*1024
 

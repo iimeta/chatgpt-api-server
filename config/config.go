@@ -32,3 +32,11 @@ func init() {
 	PlusModels.Append("gpt-4-plugins")
 	PlusModels.Append("gpt-4-mobile")
 }
+
+func PORT(ctx g.Ctx) int {
+	g.Log().Debug(ctx, "config.PORT", g.Cfg().MustGetWithEnv(ctx, "PORT").Int())
+	if g.Cfg().MustGetWithEnv(ctx, "PORT").Int() == 0 {
+		return 8001
+	}
+	return g.Cfg().MustGetWithEnv(ctx, "PORT").Int()
+}

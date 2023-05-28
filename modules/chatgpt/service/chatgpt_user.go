@@ -37,7 +37,8 @@ func NewChatgptUserService() *ChatgptUserService {
 				"userToken": "UserToken不能重复",
 			},
 			PageQueryOp: &cool.QueryOp{
-				FieldEQ: []string{"userToken", "remark"},
+				FieldEQ:      []string{"userToken", "remark"},
+				KeyWordField: []string{"userToken", "remark"},
 			},
 		},
 	}

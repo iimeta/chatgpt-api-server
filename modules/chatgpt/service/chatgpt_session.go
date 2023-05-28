@@ -27,7 +27,8 @@ func NewChatgptSessionService() *ChatgptSessionService {
 				"password": "密码不能为空",
 			},
 			PageQueryOp: &cool.QueryOp{
-				FieldEQ: []string{"email", "password", "remark"},
+				FieldEQ:      []string{"email", "password", "remark"},
+				KeyWordField: []string{"email", "password", "remark"},
 			},
 		},
 	}
