@@ -65,29 +65,44 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 }
 
 // GetSessionByUserToken 根据userToken获取session
-func (s *ChatgptSessionService) GetSessionByUserToken(ctx g.Ctx, userToken string, conversationId string, isPlusModel bool) (record gdb.Record, err error) {
+func (s *ChatgptSessionService) GetSessionByUserToken(ctx g.Ctx, userToken string, conversationId string, isPlusModel bool) (record gdb.Record, code int, err error) {
 	if conversationId != "" {
 		rec, err := cool.DBM(model.NewChatgptConversation()).Where(g.Map{
 			"conversationId": conversationId,
 			"userToken":      userToken,
 		}).One()
 		if err != nil {
-			return nil, err
+			return nil, 500, err
 		}
 		if rec.IsEmpty() {
-			return nil, nil
+			return nil, 404, nil
 		}
 		email := rec["email"].String()
 		record, err = cool.DBM(s.Model).Where("email=?", email).One()
-		return record, err
+		if err != nil {
+			return nil, 500, err
+		}
+		if record.IsEmpty() {
+			return nil, 404, nil
+		}
+		return record, 200, err
 	}
 	m := cool.DBM(s.Model).Where("status=1")
+	g.Log().Debug(ctx, "ChatgptSessionService.GetSessionByUserToken", "isPlusModel", isPlusModel)
 	if isPlusModel {
-		m = m.Where("isPlus=1")
+		m = m.Where("isPlus", 1)
 	} else {
-		m = m.Where("isPlus=0")
+		m = m.Where("isPlus", 0)
 	}
 	record, err = m.OrderRandom().One()
+	if err != nil {
+		return nil, 500, err
+	}
+	if record.IsEmpty() {
+		err = gerror.New("无可用session")
 
-	return
+		return nil, 501, err
+	}
+
+	return record, 200, err
 }

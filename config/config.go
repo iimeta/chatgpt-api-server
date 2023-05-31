@@ -40,3 +40,7 @@ func PORT(ctx g.Ctx) int {
 	}
 	return g.Cfg().MustGetWithEnv(ctx, "PORT").Int()
 }
+
+func ISFREE(ctx g.Ctx) bool {
+	return g.Cfg().MustGetWithEnv(ctx, "ISFREE").Bool()
+}

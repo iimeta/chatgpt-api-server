@@ -36,22 +36,38 @@ func Conversation(r *ghttp.Request) {
 	g.Log().Debug(ctx, userToken, reqJson)
 	reqModel := reqJson.Get("model").String()
 	var isPlusModel bool
-	if config.PlusModels.Contains(reqModel) {
+	g.Log().Debug(ctx, "reqModel", reqModel, config.PlusModels.ContainsI(reqModel), config.FreeModels.Contains(reqModel))
+	g.Log().Debug(ctx, "reqModel", reqModel, config.FreeModels.ContainsI(reqModel), config.PlusModels.Contains(reqModel))
+	if config.PlusModels.ContainsI(reqModel) {
 		isPlusModel = true
-	} else if config.FreeModels.Contains(reqModel) {
+	} else if config.FreeModels.ContainsI(reqModel) {
 		isPlusModel = false
 	} else {
 		reqJson.Set("model", config.DefaultModel)
 		isPlusModel = false
 	}
+	// if config.PlusModels.ContainsI(reqModel) {
+	// 	isPlusModel = true
+	// } else if config.FreeModels.Contains(reqModel) {
+	// 	isPlusModel = false
+	// } else {
+	// 	reqJson.Set("model", config.DefaultModel)
+	// 	isPlusModel = false
+	// }
+	// 遍历 config.PlusModels
+	g.Log().Debug(ctx, "isPlusModel", isPlusModel)
 
 	sessionPair, code, err := ChatgptUserService.GetSessionPair(ctx, userToken, reqJson.Get("conversation_id").String(), isPlusModel)
 	if err != nil {
+		g.Log().Error(ctx, code, err)
 		r.Response.WriteStatusExit(code)
+		return
 	}
+	// g.Dump(sessionPair)
 	// 如果 sessionPair 为空，返回 500
 	if sessionPair == nil {
 		r.Response.WriteStatusExit(500)
+		return
 	}
 	// 如果配置了  USERTOKENLOCK ,则加锁限制每个用户只能有一个会话并发
 	if config.USERTOKENLOCK(ctx) && isPlusModel {
