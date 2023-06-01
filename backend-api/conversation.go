@@ -19,6 +19,7 @@ import (
 
 var (
 	USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
+	client           = g.Client()
 )
 
 func Conversation(r *ghttp.Request) {
@@ -103,7 +104,7 @@ func Conversation(r *ghttp.Request) {
 		sessionPair.Lock.Unlock()
 		g.Log().Debug(ctx, userToken, "解锁sessionPair.Lock")
 	}()
-	client := g.Client()
+	// client := g.Client()
 	client.SetHeader("Authorization", sessionPair.AccessToken)
 	client.SetHeader("Content-Type", "application/json")
 	client.SetHeader("authkey", config.AUTHKEY(ctx))
