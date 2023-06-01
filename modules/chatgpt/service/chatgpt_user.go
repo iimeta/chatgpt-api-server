@@ -97,7 +97,8 @@ func (s *ChatgptUserService) GetSessionPair(ctx g.Ctx, userToken string, convers
 			Lock:        gmutex.New(),
 		}
 		if sessionPair.AccessToken == "" {
-			code = 500
+			code = 404
+			g.Log().Error(ctx, "get accessToken error", sessionRecord["officialSession"].String())
 			err = gerror.New("get accessToken error")
 			return
 		}
