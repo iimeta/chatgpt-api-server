@@ -114,6 +114,8 @@ func Conversation(r *ghttp.Request) {
 		r.Response.WriteStatusExit(500)
 	}
 	defer resp.Close()
+	defer resp.Response.Body.Close()
+
 	if resp.StatusCode == 200 && resp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
 		r.Response.Header().Set("Content-Type", "text/event-stream")
 		r.Response.Header().Set("Cache-Control", "no-cache")
@@ -129,7 +131,6 @@ func Conversation(r *ghttp.Request) {
 		conversationId := ""
 		modelSlug := ""
 		decoder := eventsource.NewDecoder(resp.Response.Body)
-		defer resp.Response.Body.Close()
 		for {
 			event, err := decoder.Decode()
 			if err != nil {
