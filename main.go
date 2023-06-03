@@ -10,6 +10,7 @@ import (
 	_ "chatgpt-api-server/backend-api"
 	_ "chatgpt-api-server/modules"
 
+	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"chatgpt-api-server/internal/cmd"
@@ -17,5 +18,6 @@ import (
 
 func main() {
 	// gres.Dump()
+	go ghttp.StartPProfServer(8299)
 	cmd.Main.Run(gctx.New())
 }
