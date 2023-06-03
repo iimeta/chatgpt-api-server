@@ -129,6 +129,7 @@ func Conversation(r *ghttp.Request) {
 		conversationId := ""
 		modelSlug := ""
 		decoder := eventsource.NewDecoder(resp.Response.Body)
+		defer resp.Response.Body.Close()
 		for {
 			event, err := decoder.Decode()
 			if err != nil {
@@ -163,7 +164,8 @@ func Conversation(r *ghttp.Request) {
 
 			if err != nil {
 				g.Log().Error(ctx, "fmt.Fprintf error", err)
-				break
+				r.Response.WriteStatusExit(500)
+				return
 			}
 			flusher.Flush()
 		}
