@@ -131,6 +131,7 @@ func Conversation(r *ghttp.Request) {
 		conversationId := ""
 		modelSlug := ""
 		streamOption := eventsource.DecoderOptionReadTimeout(600 * time.Second)
+		eventsource.NewSliceRepository()
 		decoder := eventsource.NewDecoderWithOptions(resp.Body, streamOption)
 		for {
 			event, err := decoder.Decode()
@@ -139,16 +140,21 @@ func Conversation(r *ghttp.Request) {
 					break
 				}
 				g.Log().Error(ctx, "decoder.Decode error", err)
-				continue
+				break
 			}
 			text := event.Data()
 			if text == "" {
 				continue
 			}
 			if text == "[DONE]" {
-				r.Response.Writefln("data: %s\n\n", text)
-				r.Response.Flush()
-				break
+				_, err = fmt.Fprintf(rw, "data: %s\n\n", text)
+				if err != nil {
+					g.Log().Error(ctx, "fmt.Fprintf error", err)
+					r.Response.WriteStatusExit(500)
+					return
+				}
+				flusher.Flush()
+				continue
 			}
 			conversation_id := gjson.New(text).Get("conversation_id").String()
 			model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
@@ -166,8 +172,8 @@ func Conversation(r *ghttp.Request) {
 
 			if err != nil {
 				g.Log().Error(ctx, "fmt.Fprintf error", err)
-				r.Response.WriteStatusExit(500)
-				return
+				resp.Body.Close()
+				continue
 			}
 			flusher.Flush()
 		}
