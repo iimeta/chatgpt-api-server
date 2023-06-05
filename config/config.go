@@ -44,3 +44,7 @@ func PORT(ctx g.Ctx) int {
 func ISFREE(ctx g.Ctx) bool {
 	return g.Cfg().MustGetWithEnv(ctx, "ISFREE").Bool()
 }
+
+func APIAUTH(ctx g.Ctx) string {
+	return g.Cfg().MustGetWithEnv(ctx, "APIAUTH").String()
+}

@@ -6,9 +6,11 @@
 
 ```yaml
 # 接入网关地址
-CHATPROXY: "https://demoproxy.xyhelper.cn"
+CHATPROXY: "https://demo.xyhelper.cn"
 # 接入网关的authkey
-AUTHKEY: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+AUTHKEY: "xyhelper"
 # 是否限制每个用户只能同时发起一个会话
 USERTOKENLOCK: true
+# 3.5模型是否免费
+ISFREE: true
 ```
