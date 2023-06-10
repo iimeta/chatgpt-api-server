@@ -49,4 +49,17 @@ redis-up: ## 启动redis
 redis-down: ## 停止redis
 	@echo "停止redis"
 	@docker-compose -f ./.devcontainer/docker-compose.yml stop redis
+
+# 启动web
+.PHONY: web-up
+web-up: ## 启动web
+	@echo "启动web"
+	@docker-compose -f ./.devcontainer/docker-compose.yml up -d web
+
+# 停止web
+.PHONY: web-down
+web-down: ## 停止web
+	@echo "停止web"
+	@docker-compose -f ./.devcontainer/docker-compose.yml stop web
+	
 	

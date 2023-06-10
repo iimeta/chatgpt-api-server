@@ -28,3 +28,12 @@ services:
       - ./data/redis/:/data/
     ports:
       - 6379:6379
+  web:
+    image: xyhelper/xyhelper-web
+    container_name: xyhelper-web
+    restart: always
+    network_mode: host
+
+    environment:
+      PORT: 8888
+      BASE_URI: http://127.0.0.1:8001

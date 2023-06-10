@@ -20,6 +20,7 @@ import (
 var (
 	USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
 	client           = g.Client()
+	continueRequest  = `{"action":"continue","conversation_id":"f8cdda28-fcae-4dc8-b8b6-687af2741ee7","parent_message_id":"c22837bf-c1f9-4579-a2b4-71102670cfe2","model":"text-davinci-002-render-sha","timezone_offset_min":-480,"history_and_training_disabled":false}`
 )
 
 func Conversation(r *ghttp.Request) {
@@ -128,11 +129,14 @@ func Conversation(r *ghttp.Request) {
 			r.Response.WriteStatusExit(500)
 			return
 		}
+		messageId := ""
+		messagBody := ""
 		conversationId := ""
 		modelSlug := ""
 		streamOption := eventsource.DecoderOptionReadTimeout(600 * time.Second)
 		eventsource.NewSliceRepository()
 		decoder := eventsource.NewDecoderWithOptions(resp.Body, streamOption)
+		finishType := ""
 		for {
 			event, err := decoder.Decode()
 			if err != nil {
@@ -156,8 +160,12 @@ func Conversation(r *ghttp.Request) {
 				flusher.Flush()
 				continue
 			}
+			// g.Log().Debug(ctx, "text", gjson.New(text))
+			messeage_id := gjson.New(text).Get("message.id").String()
 			conversation_id := gjson.New(text).Get("conversation_id").String()
 			model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
+			finish_type := gjson.New(text).Get("message.metadata.finish_details.type").String()
+			message_body := gjson.New(text).Get("message.content.parts.0").String()
 
 			// g.Log().Debug(ctx, "conversation_id", conversation_id)
 			if conversation_id != "" {
@@ -165,6 +173,15 @@ func Conversation(r *ghttp.Request) {
 			}
 			if model_slug != "" {
 				modelSlug = model_slug
+			}
+			if messeage_id != "" {
+				messageId = messeage_id
+			}
+			if message_body != "" {
+				messagBody = message_body
+			}
+			if finish_type != "" {
+				finishType = finish_type
 			}
 			// r.Response.Writefln("data: %s\n\n", text)
 			// r.Response.Flush()
@@ -177,8 +194,98 @@ func Conversation(r *ghttp.Request) {
 			}
 			flusher.Flush()
 		}
+		g.Log().Debug(ctx, "finishType", finishType)
 		g.Log().Debug(ctx, "conversationId", conversationId)
 		g.Log().Debug(ctx, "modelSlug", modelSlug)
+		g.Log().Debug(ctx, "messageId", messageId)
+		g.Log().Debug(ctx, "messagBody", messagBody)
+		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
+		if finishType == "max_tokens" {
+			g.Log().Debug(ctx, "finishType", finishType, "继续请求")
+			continueJson := gjson.New(continueRequest)
+			continueJson.Set("conversation_id", conversationId)
+			continueJson.Set("model", modelSlug)
+			continueJson.Set("parent_message_id", messageId)
+			g.Log().Debug(ctx, "continueJson", continueJson)
+			continueresp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", continueJson)
+			if err != nil {
+				r.Response.WriteStatusExit(500)
+			}
+			defer continueresp.Close()
+			defer continueresp.Body.Close()
+			if continueresp.StatusCode == 200 && continueresp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
+				decoder := eventsource.NewDecoderWithOptions(continueresp.Body, streamOption)
+				continueMessage := ""
+				for {
+					event, err := decoder.Decode()
+					if err != nil {
+						if err == io.EOF {
+							break
+						}
+						g.Log().Error(ctx, "decoder.Decode error", err)
+						break
+					}
+					text := event.Data()
+					if text == "" {
+						continue
+					}
+					if text == "[DONE]" {
+						_, err = fmt.Fprintf(rw, "data: %s\n\n", text)
+						if err != nil {
+							g.Log().Error(ctx, "fmt.Fprintf error", err)
+							r.Response.WriteStatusExit(500)
+							return
+						}
+						flusher.Flush()
+						continue
+					}
+					// g.Log().Debug(ctx, "text", gjson.New(text))
+					messeage_id := gjson.New(text).Get("message.id").String()
+					conversation_id := gjson.New(text).Get("conversation_id").String()
+					model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
+					finish_type := gjson.New(text).Get("message.metadata.finish_details.type").String()
+
+					// g.Log().Debug(ctx, "conversation_id", conversation_id)
+					if conversation_id != "" {
+						conversationId = conversation_id
+					}
+					if model_slug != "" {
+						modelSlug = model_slug
+					}
+					if messeage_id != "" {
+						messageId = messeage_id
+					}
+					if finish_type != "" {
+						finishType = finish_type
+					}
+					// r.Response.Writefln("data: %s\n\n", text)
+					// r.Response.Flush()
+					textJson := gjson.New(text)
+					message := textJson.Get("message.content.parts.0").String()
+					if message != "" {
+						continueMessage = message
+						textJson.Set("message.content.parts.0", messagBody+message)
+					}
+
+					_, err = fmt.Fprintf(rw, "data: %s\n\n", textJson)
+
+					if err != nil {
+						g.Log().Error(ctx, "fmt.Fprintf error", err)
+						continueresp.Body.Close()
+						continue
+					}
+					flusher.Flush()
+				}
+				messagBody = messagBody + continueMessage
+				g.Log().Debug(ctx, "finishType", finishType)
+				g.Log().Debug(ctx, "conversationId", conversationId)
+				g.Log().Debug(ctx, "modelSlug", modelSlug)
+				g.Log().Debug(ctx, "messageId", messageId)
+				g.Log().Debug(ctx, "messagBody", messagBody)
+
+			}
+
+		}
 		// 如果请求的会话ID与返回的会话ID不一致，说明是新的会话，需要插入数据库
 		if reqJson.Get("conversation_id").String() != conversationId {
 			cool.DBM(model.NewChatgptConversation()).Insert(g.Map{
