@@ -1,6 +1,8 @@
 # ChatGPT-API-SERVER
 
-使用 chat 接口模拟并提供聊天服务
+使用 chat 接口转换对外提供API服务，支持多账号轮循，支持并发控制，支持多种模型。
+
+快速部署脚本：[ChatGPT-API-SERVER-Deploy](https://github.com/xyhelper/chatgpt-api-server-deploy/)。
 
 ## 环境变量
 
