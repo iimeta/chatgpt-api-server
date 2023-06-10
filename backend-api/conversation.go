@@ -19,11 +19,12 @@ import (
 
 var (
 	USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
-	client           = g.Client()
 	continueRequest  = `{"action":"continue","conversation_id":"f8cdda28-fcae-4dc8-b8b6-687af2741ee7","parent_message_id":"c22837bf-c1f9-4579-a2b4-71102670cfe2","model":"text-davinci-002-render-sha","timezone_offset_min":-480,"history_and_training_disabled":false}`
 )
 
 func Conversation(r *ghttp.Request) {
+	client := g.Client()
+
 	ctx := r.Context()
 	// if r.Header.Get("Authorization") == "" {
 	// 	r.Response.WriteStatusExit(401)
@@ -213,6 +214,7 @@ func Conversation(r *ghttp.Request) {
 			}
 			defer continueresp.Close()
 			defer continueresp.Body.Close()
+			g.Log().Debug(ctx, "continueresp.StatusCode", continueresp.StatusCode)
 			if continueresp.StatusCode == 200 && continueresp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
 				decoder := eventsource.NewDecoderWithOptions(continueresp.Body, streamOption)
 				continueMessage := ""
