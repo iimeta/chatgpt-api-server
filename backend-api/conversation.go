@@ -199,9 +199,10 @@ func Conversation(r *ghttp.Request) {
 		g.Log().Debug(ctx, "conversationId", conversationId)
 		g.Log().Debug(ctx, "modelSlug", modelSlug)
 		g.Log().Debug(ctx, "messageId", messageId)
-		g.Log().Debug(ctx, "messagBody", messagBody)
+		// g.Log().Debug(ctx, "messagBody", messagBody)
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
-		if finishType == "max_tokens" {
+		count := 0
+		for finishType == "max_tokens" && count < 3 {
 			g.Log().Debug(ctx, "finishType", finishType, "继续请求")
 			continueJson := gjson.New(continueRequest)
 			continueJson.Set("conversation_id", conversationId)
@@ -274,16 +275,18 @@ func Conversation(r *ghttp.Request) {
 					if err != nil {
 						g.Log().Error(ctx, "fmt.Fprintf error", err)
 						continueresp.Body.Close()
+						finishType = "error"
 						continue
 					}
 					flusher.Flush()
 				}
 				messagBody = messagBody + continueMessage
+				count++
 				g.Log().Debug(ctx, "finishType", finishType)
 				g.Log().Debug(ctx, "conversationId", conversationId)
 				g.Log().Debug(ctx, "modelSlug", modelSlug)
 				g.Log().Debug(ctx, "messageId", messageId)
-				g.Log().Debug(ctx, "messagBody", messagBody)
+				// g.Log().Debug(ctx, "messagBody", messagBody)
 
 			}
 
