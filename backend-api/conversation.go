@@ -275,6 +275,7 @@ func Conversation(r *ghttp.Request) {
 					if err != nil {
 						g.Log().Error(ctx, "fmt.Fprintf error", err)
 						continueresp.Body.Close()
+						continueresp.Close()
 						finishType = "error"
 						continue
 					}
@@ -287,6 +288,8 @@ func Conversation(r *ghttp.Request) {
 				g.Log().Debug(ctx, "modelSlug", modelSlug)
 				g.Log().Debug(ctx, "messageId", messageId)
 				// g.Log().Debug(ctx, "messagBody", messagBody)
+				continueresp.Body.Close()
+				continueresp.Close()
 
 			}
 
