@@ -203,7 +203,9 @@ func Conversation(r *ghttp.Request) {
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
 		count := 0
 		for finishType == "max_tokens" && count < 3 {
-			g.Log().Debug(ctx, "finishType", finishType, "继续请求")
+			count++
+
+			g.Log().Debug(ctx, "finishType", finishType, "继续请求，count:", count)
 			continueJson := gjson.New(continueRequest)
 			continueJson.Set("conversation_id", conversationId)
 			continueJson.Set("model", modelSlug)
@@ -282,7 +284,6 @@ func Conversation(r *ghttp.Request) {
 					flusher.Flush()
 				}
 				messagBody = messagBody + continueMessage
-				count++
 				g.Log().Debug(ctx, "finishType", finishType)
 				g.Log().Debug(ctx, "conversationId", conversationId)
 				g.Log().Debug(ctx, "modelSlug", modelSlug)
@@ -291,6 +292,8 @@ func Conversation(r *ghttp.Request) {
 				continueresp.Body.Close()
 				continueresp.Close()
 
+			} else {
+				break
 			}
 
 		}
