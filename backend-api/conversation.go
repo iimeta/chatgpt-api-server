@@ -107,7 +107,7 @@ func Conversation(r *ghttp.Request) {
 		g.Log().Debug(ctx, userToken, "解锁sessionPair.Lock")
 	}()
 	// client := g.Client()
-	client.SetHeader("Authorization", sessionPair.AccessToken)
+	client.SetHeader("Authorization", "Bearer "+sessionPair.AccessToken)
 	client.SetHeader("Content-Type", "application/json")
 	client.SetHeader("authkey", config.AUTHKEY(ctx))
 
