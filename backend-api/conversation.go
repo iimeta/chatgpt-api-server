@@ -113,10 +113,12 @@ func Conversation(r *ghttp.Request) {
 
 	resp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", reqJson)
 	if err != nil {
+		g.Log().Error(ctx, err)
 		r.Response.WriteStatusExit(500)
 	}
 	defer resp.Close()
 	defer resp.Body.Close()
+	g.Log().Debug(ctx, resp.StatusCode, resp.Header.Get("Content-Type"))
 
 	if resp.StatusCode == 200 && resp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
 		r.Response.Header().Set("Content-Type", "text/event-stream")
@@ -202,7 +204,7 @@ func Conversation(r *ghttp.Request) {
 		// g.Log().Debug(ctx, "messagBody", messagBody)
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
 		count := 0
-		for finishType == "max_tokens" && count < 3 {
+		for finishType == "max_tokens" && count < config.CONTINUEMAX(ctx) {
 			count++
 
 			g.Log().Debug(ctx, "finishType", finishType, "继续请求，count:", count)

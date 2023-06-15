@@ -73,3 +73,11 @@ func generateRandomNumber(max int) int {
 	rand.Seed(time.Now().UnixNano()) // 使用当前时间作为随机数生成器的种子
 	return rand.Intn(max)            // 生成0到59之间的随机数
 }
+
+// continue
+func CONTINUEMAX(ctx g.Ctx) int {
+	if g.Cfg().MustGetWithEnv(ctx, "CONTINUEMAX").IsEmpty() {
+		return 3
+	}
+	return g.Cfg().MustGetWithEnv(ctx, "CONTINUEMAX").Int()
+}
