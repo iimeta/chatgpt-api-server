@@ -12,10 +12,11 @@ import (
 )
 
 type SessionPair struct {
-	Email       string        `json:"email"`
-	Session     string        `json:"session"`
-	AccessToken string        `json:"Authorization"`
-	Lock        *gmutex.Mutex `json:"lock"`
+	Email          string        `json:"email"`
+	Session        string        `json:"session"`
+	AccessToken    string        `json:"Authorization"`
+	OfficalSession string        `json:"officalSession"`
+	Lock           *gmutex.Mutex `json:"lock"`
 }
 
 var (
@@ -91,10 +92,11 @@ func (s *ChatgptUserService) GetSessionPair(ctx g.Ctx, userToken string, convers
 	sessionPair, ok := SessionMap[email]
 	if !ok {
 		sessionPair = &SessionPair{
-			Email:       email,
-			Session:     sessionRecord["officialSession"].String(),
-			AccessToken: getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String()),
-			Lock:        gmutex.New(),
+			Email:          email,
+			Session:        sessionRecord["officialSession"].String(),
+			AccessToken:    getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String()),
+			OfficalSession: sessionRecord["officialSession"].String(),
+			Lock:           gmutex.New(),
 		}
 		if sessionPair.AccessToken == "" {
 			code = 404

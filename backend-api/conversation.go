@@ -98,13 +98,13 @@ func Conversation(r *ghttp.Request) {
 
 	// 加锁 防止并发
 	sessionPair.Lock.Lock()
-	g.Log().Debug(ctx, userToken, "加锁sessionPair.Lock")
+	g.Log().Debug(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
 	// 延迟解锁
 	defer func() {
 		// 延时1秒
 		time.Sleep(time.Second)
 		sessionPair.Lock.Unlock()
-		g.Log().Debug(ctx, userToken, "解锁sessionPair.Lock")
+		g.Log().Debug(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
 	}()
 	// client := g.Client()
 	client.SetHeader("Authorization", "Bearer "+sessionPair.AccessToken)
@@ -119,6 +119,13 @@ func Conversation(r *ghttp.Request) {
 	defer resp.Close()
 	defer resp.Body.Close()
 	g.Log().Debug(ctx, resp.StatusCode, resp.Header.Get("Content-Type"))
+	// 如果返回401 说明token过期，需要重新获取token 先删除sessionPair 并将status设置为0
+	if resp.StatusCode == 401 {
+		g.Log().Error(ctx, "token过期，需要重新获取token", sessionPair.Email)
+		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0, "officalSession": ""})
+		r.Response.WriteStatusExit(401)
+		return
+	}
 
 	if resp.StatusCode == 200 && resp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
 		r.Response.Header().Set("Content-Type", "text/event-stream")
