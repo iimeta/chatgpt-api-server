@@ -9,6 +9,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gmutex"
+	"github.com/gogf/gf/v2/os/gtime"
+	"github.com/gogf/gf/v2/util/gconv"
 )
 
 type SessionPair struct {
@@ -98,6 +100,7 @@ func (s *ChatgptUserService) GetSessionPair(ctx g.Ctx, userToken string, convers
 			OfficalSession: sessionRecord["officialSession"].String(),
 			Lock:           gmutex.New(),
 		}
+		g.Log().Debug(ctx, "sessionPair", sessionPair)
 		if sessionPair.AccessToken == "" {
 			code = 404
 			g.Log().Error(ctx, "get accessToken error", sessionRecord["officialSession"].String())
@@ -116,6 +119,21 @@ func getAccessTokenFromSession(ctx g.Ctx, session string) (accessToken string) {
 
 	accessToken = sessionJson.Get("accessToken").String()
 	// g.Log().Debug(ctx, "getAccessTokenFromSession", accessToken)
+
+	return
+}
+
+// Auth 验证用户
+func (s *ChatgptUserService) Auth(ctx g.Ctx, accessToken string) (data interface{}, err error) {
+	record, err := cool.DBM(s.Model).Where("userToken=?", accessToken).Where("expireTime>?", gconv.Time(gtime.Now())).One()
+	if err != nil {
+		return
+	}
+	if record.IsEmpty() {
+		err = gerror.New("accessToken无效")
+		return
+	}
+	data = record
 
 	return
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/cool-team-official/cool-admin-go/cool"
 
-	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -26,19 +25,27 @@ func init() {
 	cool.RegisterController(chatgpt_user_controller)
 }
 
-// 增加 Welcome 演示 方法
-type ChatgptUserWelcomeReq struct {
-	g.Meta `path:"/welcome" method:"GET"`
+type AuthReq struct {
+	g.Meta      `path:"/auth" method:"POST"`
+	AccessToken string `json:"access_token"`
 }
-type ChatgptUserWelcomeRes struct {
+type AuthRes struct {
 	*cool.BaseRes
 	Data interface{} `json:"data"`
 }
 
-func (c *ChatgptUserController) Welcome(ctx context.Context, req *ChatgptUserWelcomeReq) (res *ChatgptUserWelcomeRes, err error) {
-	res = &ChatgptUserWelcomeRes{
-		BaseRes: cool.Ok("Welcome to Cool Admin Go"),
-		Data:    gjson.New(`{"name": "Cool Admin Go", "age":0}`),
+func (c *ChatgptUserController) Auth(ctx context.Context, req *AuthReq) (res *AuthRes, err error) {
+	s := service.NewChatgptUserService()
+	data, err := s.Auth(ctx, req.AccessToken)
+	if err != nil {
+		res = &AuthRes{
+			BaseRes: cool.Fail(err.Error()),
+		}
+		return
+	}
+	res = &AuthRes{
+		BaseRes: cool.Ok(""),
+		Data:    data,
 	}
 	return
 }
