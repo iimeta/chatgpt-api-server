@@ -121,7 +121,8 @@ func Conversation(r *ghttp.Request) {
 	g.Log().Debug(ctx, resp.StatusCode, resp.Header.Get("Content-Type"))
 	// 如果返回401 说明token过期，需要重新获取token 先删除sessionPair 并将status设置为0
 	if resp.StatusCode == 401 {
-		g.Log().Error(ctx, "token过期，需要重新获取token", sessionPair.Email)
+		g.Log().Error(ctx, "token过期，需要重新获取token", sessionPair.Email, sessionPair.AccessToken, resp.ReadAllString())
+
 		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0, "officalSession": ""})
 		r.Response.WriteStatusExit(401)
 		return

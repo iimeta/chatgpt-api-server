@@ -3,6 +3,7 @@ package tasks
 import (
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
+	"chatgpt-api-server/modules/chatgpt/service"
 	"time"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
@@ -49,6 +50,8 @@ func RefreshSession(ctx g.Ctx) {
 			g.Log().Error(ctx, "RefreshSession", err)
 			continue
 		}
+		// 删除sessionPair
+		delete(service.SessionMap, v["email"].String())
 		g.Log().Info(ctx, "RefreshSession", v["email"], "success")
 		// 延时5分钟
 		time.Sleep(5 * time.Minute)

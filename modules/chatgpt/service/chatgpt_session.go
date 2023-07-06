@@ -59,6 +59,12 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 		_, err = cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
 			"officialSession": sessionJson.String(),
 		})
+		if err != nil {
+			return
+		} else {
+			// 删除sessionPair
+			delete(SessionMap, param["email"].(string))
+		}
 		return
 	}
 	return
