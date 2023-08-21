@@ -24,10 +24,10 @@ database:
     # debug: true # 是否开启调试模式，开启后会打印SQL日志
     createdAt: "createTime" # 创建时间字段
     updatedAt: "updateTime" # 更新时间字段
-redis:
-  cool:
-    address: "redis:6379"
-    db: 0
+# redis:
+#   cool:
+#     address: "redis:6379"
+#     db: 0
 cool:
   autoMigrate: true
   eps: false
