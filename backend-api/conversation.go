@@ -97,7 +97,7 @@ func Conversation(r *ghttp.Request) {
 	}
 
 	// 加锁 防止并发
-	gmlock.TryLock(sessionPair.Email)
+	gmlock.Lock(sessionPair.Email)
 	g.Log().Debug(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
 	// 延迟解锁
 	defer func() {
