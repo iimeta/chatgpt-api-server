@@ -8,17 +8,15 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gmutex"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
 type SessionPair struct {
-	Email          string        `json:"email"`
-	Session        string        `json:"session"`
-	AccessToken    string        `json:"Authorization"`
-	OfficalSession string        `json:"officalSession"`
-	Lock           *gmutex.Mutex `json:"lock"`
+	Email          string `json:"email"`
+	Session        string `json:"session"`
+	AccessToken    string `json:"Authorization"`
+	OfficalSession string `json:"officalSession"`
 }
 
 var (
@@ -98,7 +96,6 @@ func (s *ChatgptUserService) GetSessionPair(ctx g.Ctx, userToken string, convers
 			Session:        sessionRecord["officialSession"].String(),
 			AccessToken:    getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String()),
 			OfficalSession: sessionRecord["officialSession"].String(),
-			Lock:           gmutex.New(),
 		}
 		g.Log().Debug(ctx, "sessionPair", sessionPair)
 		if sessionPair.AccessToken == "" {

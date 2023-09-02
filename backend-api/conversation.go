@@ -14,12 +14,12 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gmutex"
+	"github.com/gogf/gf/v2/os/gmlock"
 )
 
 var (
-	USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
-	continueRequest  = `{"action":"continue","conversation_id":"f8cdda28-fcae-4dc8-b8b6-687af2741ee7","parent_message_id":"c22837bf-c1f9-4579-a2b4-71102670cfe2","model":"text-davinci-002-render-sha","timezone_offset_min":-480,"history_and_training_disabled":false}`
+	// USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
+	continueRequest = `{"action":"continue","conversation_id":"f8cdda28-fcae-4dc8-b8b6-687af2741ee7","parent_message_id":"c22837bf-c1f9-4579-a2b4-71102670cfe2","model":"text-davinci-002-render-sha","timezone_offset_min":-480,"history_and_training_disabled":false}`
 )
 
 func Conversation(r *ghttp.Request) {
@@ -76,34 +76,34 @@ func Conversation(r *ghttp.Request) {
 	if config.USERTOKENLOCK(ctx) && isPlusModel {
 		g.Log().Debug(ctx, "USERTOKENLOCK", config.USERTOKENLOCK(ctx))
 		// 如果 USERTOKENLOCKMAP 中没有这个用户的锁，则创建一个
-		if _, ok := USERTOKENLOCKMAP[userToken]; !ok {
-			USERTOKENLOCKMAP[userToken] = gmutex.New()
-		}
-		// 加锁
-		if USERTOKENLOCKMAP[userToken].TryLock() {
-			g.Log().Debug(ctx, userToken, "加锁USERTOKENLOCK")
-			// 延迟解锁
-			defer func() {
-				// 延时1秒
-				time.Sleep(time.Second)
-				USERTOKENLOCKMAP[userToken].Unlock()
-				g.Log().Debug(ctx, userToken, "解锁USERTOKENLOCK")
-			}()
-		} else {
-			g.Log().Info(ctx, userToken, "触发USERTOKENLOCK,返回429")
-			r.Response.WriteStatusExit(429)
-			return
-		}
+		// if _, ok := USERTOKENLOCKMAP[userToken]; !ok {
+		// 	USERTOKENLOCKMAP[userToken] = gmutex.New()
+		// }
+		// // 加锁
+		// if USERTOKENLOCKMAP[userToken].TryLock() {
+		// 	g.Log().Debug(ctx, userToken, "加锁USERTOKENLOCK")
+		// 	// 延迟解锁
+		// 	defer func() {
+		// 		// 延时1秒
+		// 		time.Sleep(time.Second)
+		// 		USERTOKENLOCKMAP[userToken].Unlock()
+		// 		g.Log().Debug(ctx, userToken, "解锁USERTOKENLOCK")
+		// 	}()
+		// } else {
+		// 	g.Log().Info(ctx, userToken, "触发USERTOKENLOCK,返回429")
+		// 	r.Response.WriteStatusExit(429)
+		// 	return
+		// }
 	}
 
 	// 加锁 防止并发
-	sessionPair.Lock.Lock()
+	gmlock.TryLock(sessionPair.Email)
 	g.Log().Debug(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
 	// 延迟解锁
 	defer func() {
 		// 延时1秒
 		time.Sleep(time.Second)
-		sessionPair.Lock.Unlock()
+		gmlock.Unlock(sessionPair.Email)
 		g.Log().Debug(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
 	}()
 	// client := g.Client()

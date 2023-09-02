@@ -33,15 +33,21 @@ func RefreshSession(ctx g.Ctx) {
 	for _, v := range result {
 		g.Log().Info(ctx, "RefreshSession", v["email"], "start")
 		getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
-		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
-			"username": v["email"],
-			"password": v["password"],
-			"authkey":  config.AUTHKEY(ctx),
-		})
-		sessionJson := gjson.New(sessionVar)
-		if sessionJson.Get("accessToken").String() == "" {
-			g.Log().Error(ctx, "RefreshSession", v["email"], "get session error", sessionJson)
-			continue
+		var sessionJson *gjson.Json
+		// 获取session 最多尝试3次
+		for i := 0; i < 3; i++ {
+			sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
+				"username": v["email"],
+				"password": v["password"],
+				"authkey":  config.AUTHKEY(ctx),
+			})
+			sessionJson := gjson.New(sessionVar)
+			if sessionJson.Get("accessToken").String() == "" {
+				g.Log().Error(ctx, "RefreshSession", v["email"], "get session error", sessionJson)
+				continue
+			} else {
+				break
+			}
 		}
 		_, err = cool.DBM(m).Where("email=?", v["email"]).Update(g.Map{
 			"officialSession": sessionJson.String(),
