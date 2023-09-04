@@ -19,13 +19,14 @@ import (
 
 var (
 	// USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
+	client = g.Client()
+
 	continueRequest = `{"action":"continue","conversation_id":"f8cdda28-fcae-4dc8-b8b6-687af2741ee7","parent_message_id":"c22837bf-c1f9-4579-a2b4-71102670cfe2","model":"text-davinci-002-render-sha","timezone_offset_min":-480,"history_and_training_disabled":false}`
 )
 
 func Conversation(r *ghttp.Request) {
-	client := g.Client()
 
-	ctx := r.Context()
+	ctx := r.GetCtx()
 	// if r.Header.Get("Authorization") == "" {
 	// 	r.Response.WriteStatusExit(401)
 	// }
@@ -98,14 +99,13 @@ func Conversation(r *ghttp.Request) {
 
 	// 加锁 防止并发
 	gmlock.Lock(sessionPair.Email)
-	defer gmlock.Unlock(sessionPair.Email)
-	g.Log().Debug(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
+	g.Log().Info(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
 	// 延迟解锁
 	defer func() {
 		// 延时1秒
 		time.Sleep(time.Second)
 		gmlock.Unlock(sessionPair.Email)
-		g.Log().Debug(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
+		g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
 	}()
 	// client := g.Client()
 	client.SetHeader("Authorization", "Bearer "+sessionPair.AccessToken)
@@ -124,7 +124,7 @@ func Conversation(r *ghttp.Request) {
 	if resp.StatusCode == 401 {
 		g.Log().Error(ctx, "token过期，需要重新获取token", sessionPair.Email, sessionPair.AccessToken, resp.ReadAllString())
 
-		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0, "officalSession": ""})
+		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
 		r.Response.WriteStatusExit(401)
 		return
 	}
@@ -155,7 +155,7 @@ func Conversation(r *ghttp.Request) {
 				if err == io.EOF {
 					break
 				}
-				g.Log().Error(ctx, "decoder.Decode error", err)
+				// g.Log().Error(ctx, "decoder.Decode error", err)
 				break
 			}
 			text := event.Data()

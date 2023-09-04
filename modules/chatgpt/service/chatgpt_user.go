@@ -100,7 +100,8 @@ func (s *ChatgptUserService) GetSessionPair(ctx g.Ctx, userToken string, convers
 		g.Log().Debug(ctx, "sessionPair", sessionPair)
 		if sessionPair.AccessToken == "" {
 			code = 404
-			g.Log().Error(ctx, "get accessToken error", sessionRecord["officialSession"].String())
+			g.Log().Error(ctx, "get accessToken error", email, sessionRecord["officialSession"].String())
+			cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
 			err = gerror.New("get accessToken error")
 			return
 		}
