@@ -103,9 +103,11 @@ func Conversation(r *ghttp.Request) {
 	// 延迟解锁
 	defer func() {
 		// 延时1秒
-		time.Sleep(time.Second)
-		gmlock.Unlock(sessionPair.Email)
-		g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
+		go func() {
+			time.Sleep(10 * time.Second)
+			gmlock.Unlock(sessionPair.Email)
+			g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
+		}()
 	}()
 	// client := g.Client()
 	client.SetHeader("Authorization", "Bearer "+sessionPair.AccessToken)
@@ -126,6 +128,28 @@ func Conversation(r *ghttp.Request) {
 
 		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
 		r.Response.WriteStatusExit(401)
+		return
+	}
+	if resp.StatusCode == 429 {
+		resStr := resp.ReadAllString()
+
+		clears_in := gjson.New(resStr).Get("detail.clears_in").Int()
+
+		if clears_in > 0 {
+			g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode==430", resStr)
+
+			r.Response.WriteStatusExit(430, resStr)
+			return
+		} else {
+			g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode==429", resStr)
+
+			r.Response.WriteStatusExit(429, resStr)
+			return
+		}
+	}
+	if resp.StatusCode != 200 {
+		g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode!=200", resp.StatusCode, resp.ReadAllString())
+		r.Response.WriteStatusExit(resp.StatusCode, resp.ReadAllString())
 		return
 	}
 
