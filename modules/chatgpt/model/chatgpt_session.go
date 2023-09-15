@@ -37,4 +37,5 @@ func NewChatgptSession() *ChatgptSession {
 // init 创建表
 func init() {
 	cool.CreateTable(&ChatgptSession{})
+
 }

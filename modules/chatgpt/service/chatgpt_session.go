@@ -3,12 +3,15 @@ package service
 import (
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
+	"time"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
+	"github.com/gogf/gf/container/gqueue"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gctx"
 )
 
 type ChatgptSessionService struct {
@@ -112,4 +115,34 @@ func (s *ChatgptSessionService) GetSessionByUserToken(ctx g.Ctx, userToken strin
 	}
 
 	return record, 200, err
+}
+
+var (
+	SessionQueue = gqueue.New()
+)
+
+func init() {
+	ctx := gctx.GetInitCtx()
+	// 获取所有 status=1 且 officialSession 不为空的数据
+	results, err := cool.DBM(model.NewChatgptSession()).Where("status=1").Where("officialSession is not null").All()
+	if err != nil {
+		panic(err)
+	}
+	for _, sessionRecord := range results {
+		// sessionPair := &SessionPair{
+		// 	ID:             sessionRecord["id"].Int64(),
+		// 	Email:          sessionRecord["email"].String(),
+		// 	Session:        sessionRecord["officialSession"].String(),
+		// 	AccessToken:    getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String()),
+		// 	OfficalSession: sessionRecord["officialSession"].String(),
+		// }
+		accessToken := getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String())
+		if accessToken == "" {
+			g.Log().Error(ctx, "get accessToken error", sessionRecord["email"].String(), sessionRecord["officialSession"].String())
+			continue
+		}
+		g.Log().Info(ctx, "add sessionPair", sessionRecord["email"].String(), accessToken)
+		SessionQueue.Push(sessionRecord["email"].String())
+		config.TokenCache.Set(ctx, sessionRecord["email"].String(), accessToken, time.Hour*24*14)
+	}
 }

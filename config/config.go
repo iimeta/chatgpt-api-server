@@ -6,6 +6,7 @@ import (
 
 	"github.com/gogf/gf/v2/container/garray"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcache"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
@@ -26,6 +27,7 @@ var (
 	DefaultModel = "text-davinci-002-render-sha"
 	FreeModels   = garray.NewStrArray()
 	PlusModels   = garray.NewStrArray()
+	TokenCache   = gcache.New()
 )
 
 func init() {

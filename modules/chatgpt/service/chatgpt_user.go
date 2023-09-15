@@ -13,6 +13,7 @@ import (
 )
 
 type SessionPair struct {
+	ID             int64  `json:"id"`
 	Email          string `json:"email"`
 	Session        string `json:"session"`
 	AccessToken    string `json:"Authorization"`

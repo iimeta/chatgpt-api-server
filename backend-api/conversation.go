@@ -3,6 +3,7 @@ package backendapi
 import (
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
+	"chatgpt-api-server/modules/chatgpt/service"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gmlock"
+	"github.com/gogf/gf/v2/util/gconv"
 )
 
 var (
@@ -60,19 +62,40 @@ func Conversation(r *ghttp.Request) {
 	// }
 	// 遍历 config.PlusModels
 	g.Log().Debug(ctx, "isPlusModel", isPlusModel)
-
-	sessionPair, code, err := ChatgptUserService.GetSessionPair(ctx, userToken, reqJson.Get("conversation_id").String(), isPlusModel)
-	if err != nil {
-		g.Log().Error(ctx, code, err)
-		r.Response.WriteStatusExit(code)
+	if service.SessionQueue.Len() == 0 {
+		g.Log().Error(ctx, "model.SessionQueue.Len()==0")
+		r.Response.WriteStatusExit(429)
 		return
 	}
+	email := service.SessionQueue.Pop()
+	emailStr := gconv.String(email)
+	clears_in := 0
+	returnQueue := true
+	defer func() {
+		go func() {
+
+			time.Sleep(time.Duration(clears_in) * time.Second)
+			if returnQueue {
+				service.SessionQueue.Push(email)
+			}
+		}()
+
+	}()
+	// var sessionPair *service.SessionPair
+	// gconv.Struct(sessionRecord, &sessionPair)
+
+	// sessionPair, code, err := ChatgptUserService.GetSessionPair(ctx, userToken, reqJson.Get("conversation_id").String(), isPlusModel)
+	// if err != nil {
+	// 	g.Log().Error(ctx, code, err)
+	// 	r.Response.WriteStatusExit(code)
+	// 	return
+	// }
 	// g.Dump(sessionPair)
 	// 如果 sessionPair 为空，返回 500
-	if sessionPair == nil {
-		r.Response.WriteStatusExit(500)
-		return
-	}
+	// if sessionPair == nil {
+	// 	r.Response.WriteStatusExit(500)
+	// 	return
+	// }
 	// 如果配置了  USERTOKENLOCK ,则加锁限制每个用户只能有一个会话并发
 	if config.USERTOKENLOCK(ctx) && isPlusModel {
 		g.Log().Debug(ctx, "USERTOKENLOCK", config.USERTOKENLOCK(ctx))
@@ -98,19 +121,29 @@ func Conversation(r *ghttp.Request) {
 	}
 
 	// 加锁 防止并发
-	gmlock.Lock(sessionPair.Email)
-	g.Log().Info(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
+	if !gmlock.TryLock(emailStr) {
+		g.Log().Info(ctx, userToken, "触发sessionPair.Lock,返回431")
+		r.Response.WriteStatusExit(431)
+		return
+	}
+	g.Log().Info(ctx, userToken, "加锁sessionPair.Lock", emailStr)
 	// 延迟解锁
 	defer func() {
 		// 延时1秒
 		go func() {
-			time.Sleep(10 * time.Second)
-			gmlock.Unlock(sessionPair.Email)
-			g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
+			time.Sleep(1 * time.Second)
+			gmlock.Unlock(emailStr)
+			g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", emailStr)
 		}()
 	}()
 	// client := g.Client()
-	client.SetHeader("Authorization", "Bearer "+sessionPair.AccessToken)
+	accessToken := config.TokenCache.MustGet(ctx, emailStr).String()
+	if accessToken == "" {
+		g.Log().Error(ctx, "get accessToken from cache fail", emailStr)
+		r.Response.WriteStatusExit(401)
+		return
+	}
+	client.SetHeader("Authorization", "Bearer "+accessToken)
 	client.SetHeader("Content-Type", "application/json")
 	client.SetHeader("authkey", config.AUTHKEY(ctx))
 
@@ -124,31 +157,42 @@ func Conversation(r *ghttp.Request) {
 	g.Log().Debug(ctx, resp.StatusCode, resp.Header.Get("Content-Type"))
 	// 如果返回401 说明token过期，需要重新获取token 先删除sessionPair 并将status设置为0
 	if resp.StatusCode == 401 {
-		g.Log().Error(ctx, "token过期，需要重新获取token", sessionPair.Email, sessionPair.AccessToken, resp.ReadAllString())
+		returnQueue = false
+		respStr := resp.ReadAllString()
+		g.Log().Error(ctx, "token过期，需要重新获取token", emailStr, respStr)
 
-		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
+		cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "remark": respStr})
 		r.Response.WriteStatusExit(401)
 		return
 	}
 	if resp.StatusCode == 429 {
 		resStr := resp.ReadAllString()
 
-		clears_in := gjson.New(resStr).Get("detail.clears_in").Int()
+		clears_in = gjson.New(resStr).Get("detail.clears_in").Int()
+		detail := gjson.New(resStr).Get("detail").String()
 
 		if clears_in > 0 {
-			g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode==430", resStr)
+			g.Log().Error(ctx, emailStr, "resp.StatusCode==430", resStr)
 
 			r.Response.WriteStatusExit(430, resStr)
 			return
 		} else {
-			g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode==429", resStr)
+			if detail == "You've reached our limit of messages per 24 hours. Please try again later." {
+				returnQueue = false
+				g.Log().Error(ctx, emailStr, "PLUS失效 resp.StatusCode==429", resStr)
+				cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "remark": "PLUS过期｜" + resStr})
+
+				r.Response.WriteStatusExit(429, resStr)
+				return
+			}
+			g.Log().Error(ctx, emailStr, "resp.StatusCode==429", resStr)
 
 			r.Response.WriteStatusExit(429, resStr)
 			return
 		}
 	}
 	if resp.StatusCode != 200 {
-		g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode!=200", resp.StatusCode, resp.ReadAllString())
+		g.Log().Error(ctx, emailStr, "resp.StatusCode!=200", resp.StatusCode, resp.ReadAllString())
 		r.Response.WriteStatusExit(resp.StatusCode, resp.ReadAllString())
 		return
 	}
@@ -170,7 +214,7 @@ func Conversation(r *ghttp.Request) {
 		conversationId := ""
 		modelSlug := ""
 		streamOption := eventsource.DecoderOptionReadTimeout(600 * time.Second)
-		eventsource.NewSliceRepository()
+		// eventsource.NewSliceRepository()
 		decoder := eventsource.NewDecoderWithOptions(resp.Body, streamOption)
 		finishType := ""
 		for {
@@ -333,12 +377,17 @@ func Conversation(r *ghttp.Request) {
 
 		}
 		// 如果请求的会话ID与返回的会话ID不一致，说明是新的会话，需要插入数据库
-		if reqJson.Get("conversation_id").String() != conversationId {
-			cool.DBM(model.NewChatgptConversation()).Insert(g.Map{
-				"userToken":      userToken,
-				"email":          sessionPair.Email,
-				"conversationId": conversationId,
-			})
+		// if reqJson.Get("conversation_id").String() != conversationId {
+		// 	cool.DBM(model.NewChatgptConversation()).Insert(g.Map{
+		// 		"userToken":      userToken,
+		// 		"email":          sessionPair.Email,
+		// 		"conversationId": conversationId,
+		// 	})
+		// }
+		if reqModel != modelSlug {
+			g.Log().Error(ctx, emailStr, "reqModel != modelSlug", reqModel, modelSlug)
+			returnQueue = false
+			cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "isPlus": 0, "remark": reqModel + "!=" + modelSlug + "|PLUS过期"})
 		}
 		r.ExitAll()
 
