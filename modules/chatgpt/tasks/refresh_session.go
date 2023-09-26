@@ -32,7 +32,7 @@ func RefreshSession(ctx g.Ctx) {
 	}
 	for _, v := range result {
 		g.Log().Info(ctx, "RefreshSession", v["email"], "start")
-		getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
+		getSessionUrl := config.CHATPROXY(ctx) + "/auth/login"
 		var sessionJson *gjson.Json
 		// 获取session 最多尝试3次
 		for i := 0; i < 3; i++ {
