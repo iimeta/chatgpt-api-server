@@ -1,8 +1,9 @@
 #!/bin/bash
 
 set -e
+set -x
 
-gf build main.go -a amd64 -s linux
+go build    -o ./temp/linux_amd64/main main.go 
 gf docker main.go -t xyhelper/chatgpt-api-server:yq
 
 # 推送镜像到docker hub

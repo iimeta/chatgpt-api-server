@@ -21,12 +21,12 @@ import (
 
 var (
 	// USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
-	client = g.Client()
 
 	continueRequest = `{"action":"continue","conversation_id":"f8cdda28-fcae-4dc8-b8b6-687af2741ee7","parent_message_id":"c22837bf-c1f9-4579-a2b4-71102670cfe2","model":"text-davinci-002-render-sha","timezone_offset_min":-480,"history_and_training_disabled":false}`
 )
 
 func Conversation(r *ghttp.Request) {
+	client := g.Client()
 
 	ctx := r.GetCtx()
 	// if r.Header.Get("Authorization") == "" {
@@ -83,42 +83,6 @@ func Conversation(r *ghttp.Request) {
 	}()
 	// var sessionPair *service.SessionPair
 	// gconv.Struct(sessionRecord, &sessionPair)
-
-	// sessionPair, code, err := ChatgptUserService.GetSessionPair(ctx, userToken, reqJson.Get("conversation_id").String(), isPlusModel)
-	// if err != nil {
-	// 	g.Log().Error(ctx, code, err)
-	// 	r.Response.WriteStatusExit(code)
-	// 	return
-	// }
-	// g.Dump(sessionPair)
-	// 如果 sessionPair 为空，返回 500
-	// if sessionPair == nil {
-	// 	r.Response.WriteStatusExit(500)
-	// 	return
-	// }
-	// 如果配置了  USERTOKENLOCK ,则加锁限制每个用户只能有一个会话并发
-	if config.USERTOKENLOCK(ctx) && isPlusModel {
-		g.Log().Debug(ctx, "USERTOKENLOCK", config.USERTOKENLOCK(ctx))
-		// 如果 USERTOKENLOCKMAP 中没有这个用户的锁，则创建一个
-		// if _, ok := USERTOKENLOCKMAP[userToken]; !ok {
-		// 	USERTOKENLOCKMAP[userToken] = gmutex.New()
-		// }
-		// // 加锁
-		// if USERTOKENLOCKMAP[userToken].TryLock() {
-		// 	g.Log().Debug(ctx, userToken, "加锁USERTOKENLOCK")
-		// 	// 延迟解锁
-		// 	defer func() {
-		// 		// 延时1秒
-		// 		time.Sleep(time.Second)
-		// 		USERTOKENLOCKMAP[userToken].Unlock()
-		// 		g.Log().Debug(ctx, userToken, "解锁USERTOKENLOCK")
-		// 	}()
-		// } else {
-		// 	g.Log().Info(ctx, userToken, "触发USERTOKENLOCK,返回429")
-		// 	r.Response.WriteStatusExit(429)
-		// 	return
-		// }
-	}
 
 	// 加锁 防止并发
 	if !gmlock.TryLock(emailStr) {
