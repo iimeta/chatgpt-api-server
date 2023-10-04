@@ -14,7 +14,6 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gmlock"
 )
 
 var (
@@ -98,17 +97,17 @@ func Conversation(r *ghttp.Request) {
 	}
 
 	// 加锁 防止并发
-	gmlock.Lock(sessionPair.Email)
-	g.Log().Info(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
-	// 延迟解锁
-	defer func() {
-		// 延时1秒
-		go func() {
-			time.Sleep(10 * time.Second)
-			gmlock.Unlock(sessionPair.Email)
-			g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
-		}()
-	}()
+	// gmlock.Lock(sessionPair.Email)
+	// g.Log().Info(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
+	// // 延迟解锁
+	// defer func() {
+	// 	// 延时1秒
+	// 	go func() {
+	// 		time.Sleep(10 * time.Second)
+	// 		gmlock.Unlock(sessionPair.Email)
+	// 		g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
+	// 	}()
+	// }()
 	// client := g.Client()
 	client.SetHeader("Authorization", "Bearer "+sessionPair.AccessToken)
 	client.SetHeader("Content-Type", "application/json")
