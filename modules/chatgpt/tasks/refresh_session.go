@@ -38,7 +38,7 @@ func RefreshSession(ctx g.Ctx) {
 		g.Log().Info(ctx, "RefreshSession", v["email"], "start")
 		// 延时1分钟
 		time.Sleep(5 * time.Second)
-		getSessionUrl := "https://chatlogin.xyhelper.cn/getsession"
+		getSessionUrl := config.CHATPROXY(ctx) + "/auth/login"
 		var sessionJson *gjson.Json
 
 		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{

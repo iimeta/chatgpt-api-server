@@ -7,6 +7,7 @@ import (
 
 	"github.com/cool-team-official/cool-admin-go/cool"
 	"github.com/gogf/gf/container/gqueue"
+	"github.com/gogf/gf/util/gconv"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -69,7 +70,20 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 			// 删除sessionPair
 			delete(SessionMap, param["email"].(string))
 		}
+		// 如果status=1，就更新token缓存及加入队列
+		config.TokenCache.Set(ctx, param["email"].(string), sessionJson.Get("accessToken").String(), time.Hour*24*14)
+		SessionQueue.Push(param["email"].(string))
+
 		return
+	} else {
+		accessToken := getAccessTokenFromSession(ctx, gconv.String(param["officialSession"]))
+		if accessToken == "" {
+			g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", "get accessToken error", param["email"], param["officialSession"])
+			err = gerror.New("get accessToken error")
+			return
+		}
+		config.TokenCache.Set(ctx, param["email"].(string), accessToken, time.Hour*24*14)
+		SessionQueue.Push(param["email"].(string))
 	}
 	return
 }

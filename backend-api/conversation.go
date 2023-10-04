@@ -15,7 +15,7 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gmlock"
+	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
@@ -36,6 +36,15 @@ func Conversation(r *ghttp.Request) {
 	userToken := r.Header.Get("Authorization")[7:]
 	// 如果 Authorization 为空，返回 401
 	if userToken == "" {
+		r.Response.WriteStatusExit(401)
+	}
+	record, err := cool.DBM(model.NewChatgptUser()).Where("userToken", userToken).One()
+	if err != nil {
+		g.Log().Error(ctx, err)
+		r.Response.WriteStatusExit(500)
+	}
+	if record.IsEmpty() {
+		g.Log().Error(ctx, "userToken not found", userToken)
 		r.Response.WriteStatusExit(401)
 	}
 	reqJson := gjson.New(r.GetBody())
@@ -69,6 +78,7 @@ func Conversation(r *ghttp.Request) {
 	}
 	email := service.SessionQueue.Pop()
 	emailStr := gconv.String(email)
+	g.Log().Info(ctx, "使用", emailStr, "发起请求")
 	clears_in := 0
 	returnQueue := true
 	defer func() {
@@ -85,21 +95,21 @@ func Conversation(r *ghttp.Request) {
 	// gconv.Struct(sessionRecord, &sessionPair)
 
 	// 加锁 防止并发
-	if !gmlock.TryLock(emailStr) {
-		g.Log().Info(ctx, userToken, "触发sessionPair.Lock,返回431")
-		r.Response.WriteStatusExit(431)
-		return
-	}
-	g.Log().Info(ctx, userToken, "加锁sessionPair.Lock", emailStr)
+	// if !gmlock.TryLock(emailStr) {
+	// 	g.Log().Info(ctx, userToken, "触发sessionPair.Lock,返回431")
+	// 	r.Response.WriteStatusExit(431)
+	// 	return
+	// }
+	// g.Log().Info(ctx, userToken, "加锁sessionPair.Lock", emailStr)
 	// 延迟解锁
-	defer func() {
-		// 延时1秒
-		go func() {
-			time.Sleep(1 * time.Second)
-			gmlock.Unlock(emailStr)
-			g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", emailStr)
-		}()
-	}()
+	// defer func() {
+	// 	// 延时1秒
+	// 	go func() {
+	// 		time.Sleep(1 * time.Second)
+	// 		gmlock.Unlock(emailStr)
+	// 		g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", emailStr)
+	// 	}()
+	// }()
 	// client := g.Client()
 	accessToken := config.TokenCache.MustGet(ctx, emailStr).String()
 	if accessToken == "" {
@@ -123,9 +133,18 @@ func Conversation(r *ghttp.Request) {
 	if resp.StatusCode == 401 {
 		returnQueue = false
 		respStr := resp.ReadAllString()
+		respJson := gjson.New(respStr)
+		detail_code := respJson.Get("detail.code").String()
+		if detail_code == "account_deactivated" {
+			g.Log().Error(ctx, "账号被封禁", emailStr, respStr)
+			cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "remark": "账号被封禁"})
+			r.Response.WriteStatusExit(401, respStr)
+			return
+		}
 		g.Log().Error(ctx, "token过期，需要重新获取token", emailStr, respStr)
 
 		cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "remark": respStr})
+		go RefreshToken(emailStr)
 		r.Response.WriteStatusExit(401)
 		return
 	}
@@ -245,7 +264,7 @@ func Conversation(r *ghttp.Request) {
 		// g.Log().Debug(ctx, "messagBody", messagBody)
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
 		count := 0
-		for finishType == "max_tokens" && count < config.CONTINUEMAX(ctx) {
+		for finishType == "max_tokens" && count < -1 {
 			count++
 
 			g.Log().Debug(ctx, "finishType", finishType, "继续请求，count:", count)
@@ -359,4 +378,103 @@ func Conversation(r *ghttp.Request) {
 
 	}
 	r.Response.WriteStatusExit(resp.StatusCode, resp.ReadAllString())
+}
+
+func RefreshToken(email string) {
+	ctx := gctx.New()
+	g.Log().Info(ctx, "RefreshToken", email, "start~~~~~~~~~~~~~~~~~~~~~")
+	record, err := cool.DBM(model.NewChatgptSession()).Where("email", email).One()
+	if err != nil {
+		g.Log().Error(ctx, "RefreshToken", email, err)
+		return
+	}
+	if record.IsEmpty() {
+		g.Log().Error(ctx, "RefreshToken", email, "record.IsEmpty()")
+		return
+	}
+	refresh_token := gjson.New(record["officialSession"]).Get("refresh_token").String()
+	status := record["status"].Int()
+	if refresh_token == "" {
+		// 先获取refresh_token
+		getSessionUrl := config.CHATPROXY(ctx) + "/auth/login"
+		var sessionJson *gjson.Json
+		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
+			"username": record["email"],
+			"password": record["password"],
+			"authkey":  config.AUTHKEY(ctx),
+		})
+		sessionJson = gjson.New(sessionVar)
+		if sessionJson.Get("detail").String() != "" {
+			g.Log().Error(ctx, "RefreshToken", email, "账号异常", sessionJson.Get("detail").String())
+			cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+
+				"remark": "异常" + sessionJson.Get("detail").String(),
+			})
+
+			return
+		}
+		refresh_token = sessionJson.Get("refresh_token").String()
+		if refresh_token == "" {
+			g.Log().Error(ctx, "RefreshToken", email, "get refresh_token error", sessionVar)
+			_, err = cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+				"remark": sessionVar.String(),
+			})
+			if err != nil {
+				g.Log().Error(ctx, "RefreshToken", err)
+				return
+			}
+			return
+		}
+		_, err = cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+			"officialSession": sessionJson.String(),
+			"status":          1,
+			"remark":          "",
+		})
+		if err != nil {
+			g.Log().Error(ctx, "RefreshToken", err)
+
+			return
+		}
+		// 加入缓存及队列
+		config.TokenCache.Set(ctx, record["email"].String(), sessionJson.Get("accessToken").String(), time.Hour*24*14)
+		if status == 0 {
+			service.SessionQueue.Push(email)
+		}
+	} else {
+		// 使用refresh_token获取新的token
+		refreshUrl := config.CHATPROXY(ctx) + "/auth/refresh"
+		var refreshJson *gjson.Json
+		refreshVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, refreshUrl, g.Map{
+			"refresh_token": refresh_token,
+			"authkey":       config.AUTHKEY(ctx),
+		})
+		refreshJson = gjson.New(refreshVar)
+		accessToken := refreshJson.Get("access_token").String()
+		if accessToken == "" {
+			g.Log().Error(ctx, "RefreshToken", email, "get accessToken error", refreshVar)
+			_, err = cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+				"remark": refreshVar.String(),
+			})
+			if err != nil {
+				g.Log().Error(ctx, "RefreshToken", err)
+				return
+			}
+			return
+		}
+		officialSession := gjson.New(record["officialSession"])
+		officialSession.Set("access_token", accessToken)
+		officialSession.Set("accessToken", accessToken)
+		cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+			"officialSession": officialSession.String(),
+			"status":          1,
+			"remark":          "",
+		})
+		status = record["status"].Int()
+		// 加入缓存及队列
+		config.TokenCache.Set(ctx, record["email"].String(), accessToken, time.Hour*24*14)
+		if status == 0 {
+			service.SessionQueue.Push(email)
+		}
+	}
+	g.Log().Info(ctx, "RefreshToken", email, "end~~~~~~~~~~~~~~~~~~~~~")
 }
