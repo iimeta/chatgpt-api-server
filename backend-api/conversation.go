@@ -11,6 +11,7 @@ import (
 	"github.com/cool-team-official/cool-admin-go/cool"
 	"github.com/launchdarkly/eventsource"
 
+	"github.com/gogf/gf/os/gctx"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -38,6 +39,7 @@ func Conversation(r *ghttp.Request) {
 	reqJson := gjson.New(r.GetBody())
 	g.Log().Debug(ctx, userToken, reqJson)
 	reqModel := reqJson.Get("model").String()
+	history_and_training_disabled := reqJson.Get("history_and_training_disabled").Bool()
 	var isPlusModel bool
 	g.Log().Debug(ctx, "reqModel", reqModel, config.PlusModels.ContainsI(reqModel), config.FreeModels.Contains(reqModel))
 	g.Log().Debug(ctx, "reqModel", reqModel, config.FreeModels.ContainsI(reqModel), config.PlusModels.Contains(reqModel))
@@ -126,6 +128,7 @@ func Conversation(r *ghttp.Request) {
 		g.Log().Error(ctx, "token过期，需要重新获取token", sessionPair.Email, sessionPair.AccessToken, resp.ReadAllString())
 
 		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
+		go RefreshSession(sessionPair.Email)
 		r.Response.WriteStatusExit(401)
 		return
 	}
@@ -244,6 +247,7 @@ func Conversation(r *ghttp.Request) {
 			continueJson.Set("conversation_id", conversationId)
 			continueJson.Set("model", modelSlug)
 			continueJson.Set("parent_message_id", messageId)
+			continueJson.Set("history_and_training_disabled", history_and_training_disabled)
 			g.Log().Debug(ctx, "continueJson", continueJson)
 			continueresp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", continueJson)
 			if err != nil {
@@ -333,11 +337,13 @@ func Conversation(r *ghttp.Request) {
 		}
 		// 如果请求的会话ID与返回的会话ID不一致，说明是新的会话，需要插入数据库
 		if reqJson.Get("conversation_id").String() != conversationId {
-			cool.DBM(model.NewChatgptConversation()).Insert(g.Map{
-				"userToken":      userToken,
-				"email":          sessionPair.Email,
-				"conversationId": conversationId,
-			})
+			if !history_and_training_disabled {
+				cool.DBM(model.NewChatgptConversation()).Insert(g.Map{
+					"userToken":      userToken,
+					"email":          sessionPair.Email,
+					"conversationId": conversationId,
+				})
+			}
 		}
 		r.ExitAll()
 
@@ -345,4 +351,39 @@ func Conversation(r *ghttp.Request) {
 
 	}
 	r.Response.WriteStatusExit(resp.StatusCode, resp.ReadAllString())
+}
+
+func RefreshSession(email string) {
+	ctx := gctx.New()
+	m := model.NewChatgptSession()
+	result, err := cool.DBM(m).Where("email=?", email).One()
+	if err != nil {
+		g.Log().Error(ctx, "RefreshSession", err)
+		return
+	}
+	g.Log().Info(ctx, "RefreshSession", result["email"], "start")
+	// time.Sleep(5 * time.Minute)
+	getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
+	var sessionJson *gjson.Json
+	refreshToken := gjson.New(result["officialSession"]).Get("refreshToken").String()
+	sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
+		"username":     result["email"],
+		"password":     result["password"],
+		"refreshToken": refreshToken,
+		"authkey":      config.AUTHKEY(ctx),
+	})
+	sessionJson = gjson.New(sessionVar)
+	if sessionJson.Get("accessToken").String() == "" {
+		g.Log().Error(ctx, "RefreshSession", result["email"], "get session error", sessionJson)
+		return
+	}
+	_, err = cool.DBM(m).Where("email=?", result["email"]).Update(g.Map{
+		"officialSession": sessionJson.String(),
+		"status":          1,
+	})
+	if err != nil {
+		g.Log().Error(ctx, "RefreshSession", err)
+		return
+	}
+
 }

@@ -89,24 +89,22 @@ func (s *ChatgptUserService) GetSessionPair(ctx g.Ctx, userToken string, convers
 	// 	return
 	// }
 	email := sessionRecord["email"].String()
-	sessionPair, ok := SessionMap[email]
-	if !ok {
-		sessionPair = &SessionPair{
-			Email:          email,
-			Session:        sessionRecord["officialSession"].String(),
-			AccessToken:    getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String()),
-			OfficalSession: sessionRecord["officialSession"].String(),
-		}
-		g.Log().Debug(ctx, "sessionPair", sessionPair)
-		if sessionPair.AccessToken == "" {
-			code = 404
-			g.Log().Error(ctx, "get accessToken error", email, sessionRecord["officialSession"].String())
-			cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
-			err = gerror.New("get accessToken error")
-			return
-		}
-		SessionMap[email] = sessionPair
+
+	sessionPair = &SessionPair{
+		Email:          email,
+		Session:        sessionRecord["officialSession"].String(),
+		AccessToken:    getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String()),
+		OfficalSession: sessionRecord["officialSession"].String(),
 	}
+	g.Log().Debug(ctx, "sessionPair", sessionPair)
+	if sessionPair.AccessToken == "" {
+		code = 404
+		g.Log().Error(ctx, "get accessToken error", email, sessionRecord["officialSession"].String())
+		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
+		err = gerror.New("get accessToken error")
+		return
+	}
+
 	return
 }
 

@@ -57,15 +57,10 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 			err = gerror.New("get session error")
 			return
 		}
-		_, err = cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
+		cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
 			"officialSession": sessionJson.String(),
 		})
-		if err != nil {
-			return
-		} else {
-			// 删除sessionPair
-			delete(SessionMap, param["email"].(string))
-		}
+
 		return
 	}
 	return
@@ -94,7 +89,8 @@ func (s *ChatgptSessionService) GetSessionByUserToken(ctx g.Ctx, userToken strin
 		}
 		return record, 200, err
 	}
-	m := cool.DBM(s.Model).Where("status=1")
+	// officalSession不为空
+	m := cool.DBM(s.Model).Where("status=1").Where("officialSession != ''")
 	g.Log().Debug(ctx, "ChatgptSessionService.GetSessionByUserToken", "isPlusModel", isPlusModel)
 	if isPlusModel {
 		m = m.Where("isPlus", 1)
