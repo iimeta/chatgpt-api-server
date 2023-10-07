@@ -392,89 +392,31 @@ func RefreshToken(email string) {
 		g.Log().Error(ctx, "RefreshToken", email, "record.IsEmpty()")
 		return
 	}
-	refresh_token := gjson.New(record["officialSession"]).Get("refresh_token").String()
-	status := record["status"].Int()
-	if refresh_token == "" {
-		// 先获取refresh_token
-		getSessionUrl := config.CHATPROXY(ctx) + "/auth/login"
-		var sessionJson *gjson.Json
-		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
-			"username": record["email"],
-			"password": record["password"],
-			"authkey":  config.AUTHKEY(ctx),
-		})
-		sessionJson = gjson.New(sessionVar)
-		if sessionJson.Get("detail").String() != "" {
-			g.Log().Error(ctx, "RefreshToken", email, "账号异常", sessionJson.Get("detail").String())
-			cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
-
-				"remark": "异常" + sessionJson.Get("detail").String(),
-			})
-
-			return
+	getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
+	refreshCookie := gjson.New(record["officialSession"]).Get("refreshCookie").String()
+	sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
+		"username":      record["email"],
+		"password":      record["password"],
+		"authkey":       config.AUTHKEY(ctx),
+		"refreshCookie": refreshCookie,
+	})
+	sessionJson := gjson.New(sessionVar)
+	if sessionJson.Get("accessToken").String() == "" {
+		g.Log().Error(ctx, "RefreshToken", email, "sessionJson.Get(accessToken).String() == ''", sessionVar)
+		detail := sessionJson.Get("detail").String()
+		if detail != "" {
+			cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0, "remark": detail})
 		}
-		refresh_token = sessionJson.Get("refresh_token").String()
-		if refresh_token == "" {
-			g.Log().Error(ctx, "RefreshToken", email, "get refresh_token error", sessionVar)
-			_, err = cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
-				"remark": sessionVar.String(),
-			})
-			if err != nil {
-				g.Log().Error(ctx, "RefreshToken", err)
-				return
-			}
-			return
-		}
-		_, err = cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
-			"officialSession": sessionJson.String(),
-			"status":          1,
-			"remark":          "",
-		})
-		if err != nil {
-			g.Log().Error(ctx, "RefreshToken", err)
-
-			return
-		}
-		// 加入缓存及队列
-		config.TokenCache.Set(ctx, record["email"].String(), sessionJson.Get("accessToken").String(), time.Hour*24*14)
-		if status == 0 {
-			service.SessionQueue.Push(email)
-		}
-	} else {
-		// 使用refresh_token获取新的token
-		refreshUrl := config.CHATPROXY(ctx) + "/auth/refresh"
-		var refreshJson *gjson.Json
-		refreshVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, refreshUrl, g.Map{
-			"refresh_token": refresh_token,
-			"authkey":       config.AUTHKEY(ctx),
-		})
-		refreshJson = gjson.New(refreshVar)
-		accessToken := refreshJson.Get("access_token").String()
-		if accessToken == "" {
-			g.Log().Error(ctx, "RefreshToken", email, "get accessToken error", refreshVar)
-			_, err = cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
-				"remark": refreshVar.String(),
-			})
-			if err != nil {
-				g.Log().Error(ctx, "RefreshToken", err)
-				return
-			}
-			return
-		}
-		officialSession := gjson.New(record["officialSession"])
-		officialSession.Set("access_token", accessToken)
-		officialSession.Set("accessToken", accessToken)
-		cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
-			"officialSession": officialSession.String(),
-			"status":          1,
-			"remark":          "",
-		})
-		status = record["status"].Int()
-		// 加入缓存及队列
-		config.TokenCache.Set(ctx, record["email"].String(), accessToken, time.Hour*24*14)
-		if status == 0 {
-			service.SessionQueue.Push(email)
-		}
+		return
 	}
+	cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{
+		"officialSession": sessionJson.String(),
+		"status":          1,
+		"remark":          "",
+	})
+	accessToken := sessionJson.Get("accessToken").String()
+	config.TokenCache.Set(ctx, email, accessToken, 60*60*24*10)
+	service.SessionQueue.Push(email)
+
 	g.Log().Info(ctx, "RefreshToken", email, "end~~~~~~~~~~~~~~~~~~~~~")
 }

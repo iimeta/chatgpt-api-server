@@ -3,7 +3,7 @@
 set -e
 set -x
 
-go build    -o ./temp/linux_amd64/main main.go 
+gf build main.go -a amd64 -s linux
 gf docker main.go -t xyhelper/chatgpt-api-server:yq
 
 # 推送镜像到docker hub

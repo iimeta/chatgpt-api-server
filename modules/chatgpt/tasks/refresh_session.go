@@ -3,7 +3,6 @@ package tasks
 import (
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
-	"chatgpt-api-server/modules/chatgpt/service"
 	"time"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
@@ -78,64 +77,34 @@ func OnStartRefreshSession(ctx g.Ctx) {
 		return
 	}
 	for _, v := range result {
-		refresh_token := gjson.New(v["officialSession"]).Get("refresh_token").String()
-		// status := v["status"].Int()
-		if refresh_token != "" {
-			// 已经有refresh_token的不需要刷新
-			g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "refresh_token已存在", refresh_token)
-			continue
-		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(time.Second)
 
-		g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "start")
-		getSessionUrl := config.CHATPROXY(ctx) + "/auth/login"
-		var sessionJson *gjson.Json
-		// var sessionVar *gvar.Var
-
+		g.Log().Info(ctx, "RefreshSession", v["email"], "start")
+		getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
+		refreshCookie := gjson.New(v["officialSession"]).Get("refreshCookie").String()
 		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
-			"username": v["email"],
-			"password": v["password"],
-			"authkey":  config.AUTHKEY(ctx),
+			"username":      v["email"],
+			"password":      v["password"],
+			"authkey":       config.AUTHKEY(ctx),
+			"refreshCookie": refreshCookie,
 		})
-		sessionJson = gjson.New(sessionVar)
-
-		if sessionJson.Get("detail").String() != "" {
-			g.Log().Error(ctx, "RefreshSession", v["email"], "账号异常", sessionJson.Get("detail").String())
-			cool.DBM(m).Where("email=?", v["email"]).Update(g.Map{
-
-				"remark": "异常" + sessionJson.Get("detail").String(),
-			})
-
-			continue
-		}
-
+		sessionJson := gjson.New(sessionVar)
 		if sessionJson.Get("accessToken").String() == "" {
-			g.Log().Error(ctx, "RefreshSession", v["email"], "get session error 2", sessionVar)
-			_, err = cool.DBM(m).Where("email=?", v["email"]).Update(g.Map{
-				"remark": sessionVar.String(),
-			})
-			if err != nil {
-				g.Log().Error(ctx, "RefreshSession", err)
-				continue
+			g.Log().Error(ctx, "RefreshSession", v["email"], "get session error", sessionJson)
+			detail := sessionJson.Get("detail").String()
+			if detail != "" {
+				cool.DBM(model.NewChatgptSession()).Where("email", v["email"]).Update(g.Map{"status": 0, "remark": detail})
 			}
 			continue
 		}
 		_, err = cool.DBM(m).Where("email=?", v["email"]).Update(g.Map{
 			"officialSession": sessionJson.String(),
-			"status":          1,
-			"remark":          "",
 		})
 		if err != nil {
 			g.Log().Error(ctx, "RefreshSession", err)
-
 			continue
 		}
-		// 删除sessionPair
-		// delete(service.SessionMap, v["email"].String())
-		config.TokenCache.Set(ctx, v["email"].String(), sessionJson.Get("accessToken").String(), time.Hour*24*14)
-		if v["status"].Int() == 0 {
-			service.SessionQueue.Push(v["email"].String())
-		}
+		g.Log().Info(ctx, "RefreshSession", v["email"], "success")
 		g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "success")
 
 	}

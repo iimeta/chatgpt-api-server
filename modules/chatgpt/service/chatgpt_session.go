@@ -47,34 +47,41 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 	}
 	// 如果没有officialSession，就去获取
 	if param["officialSession"] == "" || param["officialSession"] == nil {
-		g.Log().Debug(ctx, "ChatgptSessionService.ModifyAfter", "officialSession is empty")
-		// getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
 		getSessionUrl := config.CHATPROXY(ctx) + "/auth/login"
+		var sessionJson *gjson.Json
+		v := gconv.Map(param)
 		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
-			"username": param["email"],
-			"password": param["password"],
+			"username": v["email"],
+			"password": v["password"],
 			"authkey":  config.AUTHKEY(ctx),
 		})
-		sessionJson := gjson.New(sessionVar)
+		sessionJson = gjson.New(sessionVar)
 		if sessionJson.Get("accessToken").String() == "" {
-			g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", "get session error", sessionJson)
-			err = gerror.New("get session error")
+			g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", "get session error", sessionVar)
+			detail := sessionJson.Get("detail").String()
+			if detail != "" {
+				err = gerror.New(detail)
+				cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
+					"status": 0,
+					"remark": detail,
+				})
+			} else {
+				err = gerror.New("get session error")
+			}
 			return
 		}
 		_, err = cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
 			"officialSession": sessionJson.String(),
+			"status":          1,
+			"remark":          "",
 		})
 		if err != nil {
+			g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", err)
 			return
-		} else {
-			// 删除sessionPair
-			delete(SessionMap, param["email"].(string))
 		}
-		// 如果status=1，就更新token缓存及加入队列
-		config.TokenCache.Set(ctx, param["email"].(string), sessionJson.Get("accessToken").String(), time.Hour*24*14)
+		config.TokenCache.Set(ctx, param["email"].(string), sessionJson.Get("accessToken").String(), time.Hour*24*9)
 		SessionQueue.Push(param["email"].(string))
 
-		return
 	} else {
 		accessToken := getAccessTokenFromSession(ctx, gconv.String(param["officialSession"]))
 		if accessToken == "" {
