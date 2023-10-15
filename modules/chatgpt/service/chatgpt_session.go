@@ -47,7 +47,7 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 	}
 	// 如果没有officialSession，就去获取
 	if param["officialSession"] == "" || param["officialSession"] == nil {
-		getSessionUrl := config.CHATPROXY(ctx) + "/auth/login"
+		getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
 		var sessionJson *gjson.Json
 		v := gconv.Map(param)
 		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{

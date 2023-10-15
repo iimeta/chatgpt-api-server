@@ -12,6 +12,7 @@ import (
 	"github.com/cool-team-official/cool-admin-go/cool"
 	"github.com/launchdarkly/eventsource"
 
+	"github.com/gogf/gf/text/gstr"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -76,21 +77,37 @@ func Conversation(r *ghttp.Request) {
 		r.Response.WriteStatusExit(429)
 		return
 	}
-	email := service.SessionQueue.Pop()
-	emailStr := gconv.String(email)
-	g.Log().Info(ctx, "使用", emailStr, "发起请求")
+	Traceparent := r.Header.Get("Traceparent")
+	// Traceparent like 00-d8c66cc094b38d1796381c255542f971-09988d8458a2352c-01 获取第二个参数
+	// 以-分割，取第二个参数
+	TraceparentArr := gstr.Split(Traceparent, "-")
+	if len(TraceparentArr) < 2 {
+		g.Log().Error(ctx, "Traceparent error", Traceparent)
+		r.Response.WriteStatusExit(401)
+	}
+	// 获取第二个参数
+	Traceparent = TraceparentArr[1]
+	g.Log().Info(ctx, "Traceparent", Traceparent)
+
 	clears_in := 0
 	returnQueue := true
-	defer func() {
-		go func() {
+	emailStr := TraceparentCache.MustGet(ctx, Traceparent).String()
+	if emailStr == "" {
+		email := service.SessionQueue.Pop()
+		defer func() {
+			go func() {
 
-			time.Sleep(time.Duration(clears_in) * time.Second)
-			if returnQueue {
-				service.SessionQueue.Push(email)
-			}
+				time.Sleep(time.Duration(clears_in) * time.Second)
+				if returnQueue {
+					service.SessionQueue.Push(email)
+				}
+			}()
+
 		}()
+		emailStr = gconv.String(email)
+	}
+	g.Log().Info(ctx, "使用", emailStr, "发起请求")
 
-	}()
 	// var sessionPair *service.SessionPair
 	// gconv.Struct(sessionRecord, &sessionPair)
 
