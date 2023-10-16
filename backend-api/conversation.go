@@ -204,6 +204,9 @@ func Conversation(r *ghttp.Request) {
 			model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
 			finish_type := gjson.New(text).Get("message.metadata.finish_details.type").String()
 			message_body := gjson.New(text).Get("message.content.parts.0").String()
+			if message_body == "" {
+				continue
+			}
 
 			// g.Log().Debug(ctx, "conversation_id", conversation_id)
 			if conversation_id != "" {

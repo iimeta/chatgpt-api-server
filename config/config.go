@@ -35,6 +35,8 @@ func init() {
 	PlusModels.Append("gpt-4-browsing")
 	PlusModels.Append("gpt-4-plugins")
 	PlusModels.Append("gpt-4-mobile")
+	PlusModels.Append("gpt-4-dalle")
+	PlusModels.Append("gpt-4-code-interpreter")
 }
 
 func PORT(ctx g.Ctx) int {
@@ -64,7 +66,7 @@ func CRONINTERVAL(ctx g.Ctx) string {
 	hour := generateRandomNumber(23)
 	hourStr := gconv.String(hour)
 	// 拼接cron表达式
-	cronStr := secondStr + " " + minuteStr + " " + hourStr + " */3 * *"
+	cronStr := secondStr + " " + minuteStr + " " + hourStr + " * * *"
 	return cronStr
 
 }
