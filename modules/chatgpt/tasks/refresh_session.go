@@ -9,17 +9,18 @@ import (
 	"github.com/cool-team-official/cool-admin-go/cool"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcron"
 	"github.com/gogf/gf/v2/os/gctx"
 )
 
 func init() {
 	ctx := gctx.GetInitCtx()
 	// 任务注册
-	// corn, err := gcron.AddSingleton(ctx, config.CRONINTERVAL(ctx), RefreshSession, "RefreshSession")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// g.Log().Info(ctx, "RefreshSession", "corn", corn, "cornInterval", config.CRONINTERVAL(ctx), "注册成功")
+	corn, err := gcron.AddSingleton(ctx, config.CRONINTERVAL(ctx), RefreshSession, "RefreshSession")
+	if err != nil {
+		panic(err)
+	}
+	g.Log().Info(ctx, "RefreshSession", "corn", corn, "cornInterval", config.CRONINTERVAL(ctx), "注册成功")
 	go func() {
 		// 延时1分钟
 		OnStartRefreshSession(ctx)

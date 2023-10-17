@@ -66,7 +66,7 @@ func CRONINTERVAL(ctx g.Ctx) string {
 	hour := generateRandomNumber(23)
 	hourStr := gconv.String(hour)
 	// 拼接cron表达式
-	cronStr := secondStr + " " + minuteStr + " " + hourStr + " */3 * *"
+	cronStr := secondStr + " " + minuteStr + " " + hourStr + " * * *"
 	return cronStr
 
 }
