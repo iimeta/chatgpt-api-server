@@ -4,6 +4,7 @@ import (
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
 	"chatgpt-api-server/modules/chatgpt/service"
+	"chatgpt-api-server/utility"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -87,7 +88,7 @@ func ProxyAll(r *ghttp.Request) {
 
 		}()
 		emailStr = gconv.String(email)
-		TraceparentCache.Set(ctx, Traceparent, emailStr, time.Minute)
+		TraceparentCache.Set(ctx, Traceparent, emailStr, 10*time.Minute)
 	}
 	g.Log().Info(ctx, "使用", emailStr, "发起请求图片请求")
 
@@ -95,6 +96,14 @@ func ProxyAll(r *ghttp.Request) {
 	g.Log().Info(ctx, "get accessToken from cache", accessToken)
 	if accessToken == "" {
 		g.Log().Error(ctx, "get accessToken from cache fail", emailStr)
+		returnQueue = false
+		r.Response.WriteStatusExit(401)
+		return
+	}
+	err = utility.CheckAccessToken(accessToken)
+	if err != nil {
+		g.Log().Error(ctx, "accessToken is expired", emailStr)
+		returnQueue = false
 		r.Response.WriteStatusExit(401)
 		return
 	}

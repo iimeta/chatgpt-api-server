@@ -4,6 +4,7 @@ import (
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
 	"chatgpt-api-server/modules/chatgpt/service"
+	"chatgpt-api-server/utility"
 	"fmt"
 	"io"
 	"net/http"
@@ -131,6 +132,15 @@ func Conversation(r *ghttp.Request) {
 	accessToken := config.TokenCache.MustGet(ctx, emailStr).String()
 	if accessToken == "" {
 		g.Log().Error(ctx, "get accessToken from cache fail", emailStr)
+		returnQueue = false
+		r.Response.WriteStatusExit(401)
+		return
+	}
+	err = utility.CheckAccessToken(accessToken)
+
+	if err != nil {
+		g.Log().Error(ctx, "accessToken is expired", emailStr)
+		returnQueue = false
 		r.Response.WriteStatusExit(401)
 		return
 	}

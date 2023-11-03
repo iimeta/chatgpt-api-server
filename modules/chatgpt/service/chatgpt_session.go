@@ -3,7 +3,7 @@ package service
 import (
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
-	"time"
+	"chatgpt-api-server/utility"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
 	"github.com/gogf/gf/container/gqueue"
@@ -70,16 +70,23 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 			}
 			return
 		}
+		IsPlusAccount := 0
+
+		models := sessionJson.GetJsons("model")
+		if len(models) > 1 {
+			IsPlusAccount = 1
+		}
 		_, err = cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
 			"officialSession": sessionJson.String(),
 			"status":          1,
+			"plus":            IsPlusAccount,
 			"remark":          "",
 		})
 		if err != nil {
 			g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", err)
 			return
 		}
-		config.TokenCache.Set(ctx, param["email"].(string), sessionJson.Get("accessToken").String(), time.Hour*24*9)
+		config.TokenCache.Set(ctx, param["email"].(string), sessionJson.Get("accessToken").String(), 0)
 		SessionQueue.Push(param["email"].(string))
 
 	} else {
@@ -89,7 +96,7 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 			err = gerror.New("get accessToken error")
 			return
 		}
-		config.TokenCache.Set(ctx, param["email"].(string), accessToken, time.Hour*24*14)
+		config.TokenCache.Set(ctx, param["email"].(string), accessToken, 0)
 		SessionQueue.Push(param["email"].(string))
 	}
 	return
@@ -162,8 +169,24 @@ func init() {
 			g.Log().Error(ctx, "get accessToken error", sessionRecord["email"].String(), sessionRecord["officialSession"].String())
 			continue
 		}
-		g.Log().Info(ctx, "add sessionPair", sessionRecord["email"].String(), accessToken)
-		SessionQueue.Push(sessionRecord["email"].String())
-		config.TokenCache.Set(ctx, sessionRecord["email"].String(), accessToken, time.Hour*24*14)
+		err := utility.CheckAccessToken(accessToken)
+		if err != nil {
+			g.Log().Error(ctx, "CheckAccessToken error", sessionRecord["email"].String(), sessionRecord["officialSession"].String(), err)
+			continue
+		}
+
+		sessionJson := gjson.New(sessionRecord["officialSession"].String())
+		IsPlusAccount := 0
+		models := sessionJson.GetJsons("models")
+		if len(models) > 1 {
+			IsPlusAccount = 1
+		}
+		if IsPlusAccount == 1 {
+			g.Log().Info(ctx, "add sessionPair", sessionRecord["email"].String(), accessToken)
+			SessionQueue.Push(sessionRecord["email"].String())
+			config.TokenCache.Set(ctx, sessionRecord["email"].String(), accessToken, 0)
+		} else {
+			g.Log().Info(ctx, "not plus", sessionRecord["email"].String())
+		}
 	}
 }

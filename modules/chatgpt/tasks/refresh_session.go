@@ -92,6 +92,7 @@ func OnStartRefreshSession(ctx g.Ctx) {
 			"refreshCookie": refreshCookie,
 		})
 		sessionJson := gjson.New(sessionVar)
+		// sessionJson.Dump()
 		if sessionJson.Get("accessToken").String() == "" {
 			g.Log().Error(ctx, "RefreshSession", v["email"], "get session error", sessionJson)
 			detail := sessionJson.Get("detail").String()
@@ -100,19 +101,32 @@ func OnStartRefreshSession(ctx g.Ctx) {
 			}
 			continue
 		}
+		IsPlusAccount := 0
+
+		models := sessionJson.GetJsons("models")
+		// g.DumpWithType(models)
+		if len(models) > 1 {
+			IsPlusAccount = 1
+		}
 		_, err = cool.DBM(m).Where("email=?", v["email"]).Update(g.Map{
 			"officialSession": sessionJson.String(),
 			"status":          1,
 			"remark":          "",
+			"plus":            IsPlusAccount,
 		})
 		if err != nil {
 			g.Log().Error(ctx, "RefreshSession", err)
 			continue
 		}
-		service.SessionQueue.Push(v["email"].String())
-		config.TokenCache.Set(ctx, v["email"].String(), sessionJson.Get("accessToken").String(), time.Hour*24*10)
-		g.Log().Info(ctx, "RefreshSession", v["email"], "success")
-		g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "success")
+		if IsPlusAccount == 1 {
+			service.SessionQueue.Push(v["email"].String())
+			config.TokenCache.Set(ctx, v["email"].String(), sessionJson.Get("accessToken").String(), 0)
+
+			g.Log().Info(ctx, "RefreshSession", v["email"], "success")
+			g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "success")
+		} else {
+			g.Log().Info(ctx, "RefreshSession", v["email"], "not plus")
+		}
 
 	}
 
