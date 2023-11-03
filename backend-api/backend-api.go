@@ -69,6 +69,7 @@ func ProxyAll(r *ghttp.Request) {
 		r.Response.WriteStatusExit(401)
 	}
 	emailStr := TraceparentCache.MustGet(ctx, Traceparent).String()
+	returnQueue := true
 	if emailStr == "" {
 		if service.SessionQueue.Len() == 0 {
 			g.Log().Error(ctx, "session queue is empty")
@@ -79,7 +80,12 @@ func ProxyAll(r *ghttp.Request) {
 			return
 		}
 		email := service.SessionQueue.Pop()
-		defer service.SessionQueue.Push(email)
+		defer func() {
+			if returnQueue {
+				service.SessionQueue.Push(email)
+			}
+
+		}()
 		emailStr = gconv.String(email)
 		TraceparentCache.Set(ctx, Traceparent, emailStr, time.Minute)
 	}
@@ -107,6 +113,13 @@ func ProxyAll(r *ghttp.Request) {
 	newreq.Header.Set("Authorization", "Bearer "+accessToken)
 	newreq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36")
 	// g.Dump(newreq.URL)
+	proxy.ModifyResponse = func(response *http.Response) error {
+		if response.StatusCode == 401 {
+			returnQueue = false
+		}
+
+		return nil
+	}
 	proxy.ServeHTTP(r.Response.Writer.RawWriter(), newreq)
 
 }
