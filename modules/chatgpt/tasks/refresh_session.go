@@ -103,9 +103,10 @@ func OnStartRefreshSession(ctx g.Ctx) {
 		}
 		IsPlusAccount := 0
 
-		models := sessionJson.GetJsons("models")
+		models := sessionJson.GetJson("model")
+
 		// g.DumpWithType(models)
-		if len(models) > 1 {
+		if len(models.Array()) > 1 {
 			IsPlusAccount = 1
 		}
 		_, err = cool.DBM(m).Where("email=?", v["email"]).Update(g.Map{

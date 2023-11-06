@@ -72,8 +72,8 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 		}
 		IsPlusAccount := 0
 
-		models := sessionJson.GetJsons("model")
-		if len(models) > 1 {
+		models := sessionJson.GetJson("model")
+		if len(models.Array()) > 1 {
 			IsPlusAccount = 1
 		}
 		_, err = cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
@@ -177,8 +177,9 @@ func init() {
 
 		sessionJson := gjson.New(sessionRecord["officialSession"].String())
 		IsPlusAccount := 0
-		models := sessionJson.GetJsons("models")
-		if len(models) > 1 {
+		models := sessionJson.GetJson("model")
+
+		if len(models.Array()) > 1 {
 			IsPlusAccount = 1
 		}
 		if IsPlusAccount == 1 {
