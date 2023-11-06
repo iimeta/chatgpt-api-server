@@ -79,7 +79,7 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 		_, err = cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
 			"officialSession": sessionJson.String(),
 			"status":          1,
-			"plus":            IsPlusAccount,
+			"isPlus":          IsPlusAccount,
 			"remark":          "",
 		})
 		if err != nil {

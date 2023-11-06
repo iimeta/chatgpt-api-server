@@ -112,7 +112,7 @@ func OnStartRefreshSession(ctx g.Ctx) {
 			"officialSession": sessionJson.String(),
 			"status":          1,
 			"remark":          "",
-			"plus":            IsPlusAccount,
+			"isPlus":          IsPlusAccount,
 		})
 		if err != nil {
 			g.Log().Error(ctx, "RefreshSession", err)
