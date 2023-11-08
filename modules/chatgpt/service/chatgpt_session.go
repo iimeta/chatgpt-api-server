@@ -45,60 +45,49 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 	if method != "Add" && method != "Update" {
 		return
 	}
-	// 如果没有officialSession，就去获取
-	if param["officialSession"] == "" || param["officialSession"] == nil {
-		getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
-		var sessionJson *gjson.Json
-		v := gconv.Map(param)
-		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
-			"username": v["email"],
-			"password": v["password"],
-			"authkey":  config.AUTHKEY(ctx),
-		})
-		sessionJson = gjson.New(sessionVar)
-		if sessionJson.Get("accessToken").String() == "" {
-			g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", "get session error", sessionVar)
-			detail := sessionJson.Get("detail").String()
-			if detail != "" {
-				err = gerror.New(detail)
-				cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
-					"status": 0,
-					"remark": detail,
-				})
-			} else {
-				err = gerror.New("get session error")
-			}
-			return
-		}
-		IsPlusAccount := 0
 
-		models := sessionJson.GetJson("model")
-		if len(models.Array()) > 1 {
-			IsPlusAccount = 1
+	getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
+	var sessionJson *gjson.Json
+	v := gconv.Map(param)
+	sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
+		"username": v["email"],
+		"password": v["password"],
+		"authkey":  config.AUTHKEY(ctx),
+	})
+	sessionJson = gjson.New(sessionVar)
+	if sessionJson.Get("accessToken").String() == "" {
+		g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", "get session error", sessionVar)
+		detail := sessionJson.Get("detail").String()
+		if detail != "" {
+			err = gerror.New(detail)
+			cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
+				"status": 0,
+				"remark": detail,
+			})
+		} else {
+			err = gerror.New("get session error")
 		}
-		_, err = cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
-			"officialSession": sessionJson.String(),
-			"status":          1,
-			"isPlus":          IsPlusAccount,
-			"remark":          "",
-		})
-		if err != nil {
-			g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", err)
-			return
-		}
-		config.TokenCache.Set(ctx, param["email"].(string), sessionJson.Get("accessToken").String(), 0)
-		SessionQueue.Push(param["email"].(string))
-
-	} else {
-		accessToken := getAccessTokenFromSession(ctx, gconv.String(param["officialSession"]))
-		if accessToken == "" {
-			g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", "get accessToken error", param["email"], param["officialSession"])
-			err = gerror.New("get accessToken error")
-			return
-		}
-		config.TokenCache.Set(ctx, param["email"].(string), accessToken, 0)
-		SessionQueue.Push(param["email"].(string))
+		return
 	}
+	IsPlusAccount := 0
+
+	models := sessionJson.GetJson("models")
+	if len(models.Array()) > 1 {
+		IsPlusAccount = 1
+	}
+	_, err = cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
+		"officialSession": sessionJson.String(),
+		"status":          1,
+		"isPlus":          IsPlusAccount,
+		"remark":          "",
+	})
+	if err != nil {
+		g.Log().Error(ctx, "ChatgptSessionService.ModifyAfter", err)
+		return
+	}
+	config.TokenCache.Set(ctx, param["email"].(string), sessionJson.Get("accessToken").String(), 0)
+	SessionQueue.Push(param["email"].(string))
+
 	return
 }
 
@@ -152,7 +141,7 @@ var (
 func init() {
 	ctx := gctx.GetInitCtx()
 	// 获取所有 status=1 且 officialSession 不为空的数据
-	results, err := cool.DBM(model.NewChatgptSession()).Where("status=1").Where("officialSession is not null").All()
+	results, err := cool.DBM(model.NewChatgptSession()).Where("officialSession is not null").All()
 	if err != nil {
 		panic(err)
 	}
@@ -177,7 +166,7 @@ func init() {
 
 		sessionJson := gjson.New(sessionRecord["officialSession"].String())
 		IsPlusAccount := 0
-		models := sessionJson.GetJson("model")
+		models := sessionJson.GetJson("models")
 
 		if len(models.Array()) > 1 {
 			IsPlusAccount = 1

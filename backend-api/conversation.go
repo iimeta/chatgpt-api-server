@@ -82,14 +82,11 @@ func Conversation(r *ghttp.Request) {
 	// Traceparent like 00-d8c66cc094b38d1796381c255542f971-09988d8458a2352c-01 获取第二个参数
 	// 以-分割，取第二个参数
 	TraceparentArr := gstr.Split(Traceparent, "-")
-	if len(TraceparentArr) < 2 {
-		g.Log().Error(ctx, "Traceparent error", Traceparent)
-		r.Response.WriteStatusExit(401)
+	if len(TraceparentArr) > 1 {
+		// 获取第二个参数
+		Traceparent = TraceparentArr[1]
+		g.Log().Info(ctx, "Traceparent", Traceparent)
 	}
-	// 获取第二个参数
-	Traceparent = TraceparentArr[1]
-	g.Log().Info(ctx, "Traceparent", Traceparent)
-
 	clears_in := 0
 	returnQueue := true
 	emailStr := TraceparentCache.MustGet(ctx, Traceparent).String()
@@ -237,17 +234,18 @@ func Conversation(r *ghttp.Request) {
 				break
 			}
 			text := event.Data()
+			// g.Log().Info(ctx, "text", text)
 			if text == "" {
 				continue
 			}
 			if text == "[DONE]" {
-				_, err = fmt.Fprintf(rw, "data: %s\n\n", text)
-				if err != nil {
-					g.Log().Error(ctx, "fmt.Fprintf error", err)
-					r.Response.WriteStatusExit(500)
-					return
-				}
-				flusher.Flush()
+				// _, err = fmt.Fprintf(rw, "data: %s\n\n", text)
+				// if err != nil {
+				// 	g.Log().Error(ctx, "fmt.Fprintf error", err)
+				// 	r.Response.WriteStatusExit(500)
+				// 	return
+				// }
+				// flusher.Flush()
 				continue
 			}
 			// g.Log().Debug(ctx, "text", gjson.New(text))
@@ -291,10 +289,10 @@ func Conversation(r *ghttp.Request) {
 		// g.Log().Debug(ctx, "messagBody", messagBody)
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
 		count := 0
-		for finishType == "max_tokens" && count < -1 {
+		for finishType == "max_tokens" && count < config.CONTINUEMAX(ctx) {
 			count++
 
-			g.Log().Debug(ctx, "finishType", finishType, "继续请求，count:", count)
+			g.Log().Info(ctx, "finishType", finishType, "继续请求，count:", count)
 			continueJson := gjson.New(continueRequest)
 			continueJson.Set("conversation_id", conversationId)
 			continueJson.Set("model", modelSlug)
@@ -302,11 +300,12 @@ func Conversation(r *ghttp.Request) {
 			g.Log().Debug(ctx, "continueJson", continueJson)
 			continueresp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", continueJson)
 			if err != nil {
+				g.Log().Error(ctx, err)
 				r.Response.WriteStatusExit(500)
 			}
 			defer continueresp.Close()
 			defer continueresp.Body.Close()
-			g.Log().Debug(ctx, "continueresp.StatusCode", continueresp.StatusCode)
+			g.Log().Info(ctx, "continueresp.StatusCode", continueresp.StatusCode)
 			if continueresp.StatusCode == 200 && continueresp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
 				decoder := eventsource.NewDecoderWithOptions(continueresp.Body, streamOption)
 				continueMessage := ""
@@ -320,17 +319,19 @@ func Conversation(r *ghttp.Request) {
 						break
 					}
 					text := event.Data()
+					// g.Log().Info(ctx, "text", text)
+
 					if text == "" {
 						continue
 					}
 					if text == "[DONE]" {
-						_, err = fmt.Fprintf(rw, "data: %s\n\n", text)
-						if err != nil {
-							g.Log().Error(ctx, "fmt.Fprintf error", err)
-							r.Response.WriteStatusExit(500)
-							return
-						}
-						flusher.Flush()
+						// _, err = fmt.Fprintf(rw, "data: %s\n\n", text)
+						// if err != nil {
+						// 	g.Log().Error(ctx, "fmt.Fprintf error", err)
+						// 	r.Response.WriteStatusExit(500)
+						// 	return
+						// }
+						// flusher.Flush()
 						continue
 					}
 					// g.Log().Debug(ctx, "text", gjson.New(text))
@@ -394,6 +395,14 @@ func Conversation(r *ghttp.Request) {
 		// 		"conversationId": conversationId,
 		// 	})
 		// }
+
+		_, err = fmt.Fprintf(rw, "data: %s\n\n", "[DONE]")
+		if err != nil {
+			g.Log().Error(ctx, "fmt.Fprintf error", err)
+			r.Response.WriteStatusExit(500)
+			return
+		}
+		flusher.Flush()
 		if reqModel != modelSlug {
 			g.Log().Error(ctx, emailStr, "reqModel != modelSlug", reqModel, modelSlug)
 			returnQueue = false
