@@ -52,17 +52,17 @@ func Conversation(r *ghttp.Request) {
 	reqJson := gjson.New(r.GetBody())
 	g.Log().Debug(ctx, userToken, reqJson)
 	reqModel := reqJson.Get("model").String()
-	var isPlusModel bool
+	// var isPlusModel bool
 	g.Log().Debug(ctx, "reqModel", reqModel, config.PlusModels.ContainsI(reqModel), config.FreeModels.Contains(reqModel))
 	g.Log().Debug(ctx, "reqModel", reqModel, config.FreeModels.ContainsI(reqModel), config.PlusModels.Contains(reqModel))
-	if config.PlusModels.ContainsI(reqModel) {
-		isPlusModel = true
-	} else if config.FreeModels.ContainsI(reqModel) {
-		isPlusModel = false
-	} else {
-		reqJson.Set("model", config.DefaultModel)
-		isPlusModel = false
-	}
+	// if config.PlusModels.ContainsI(reqModel) {
+	// 	isPlusModel = true
+	// } else if config.FreeModels.ContainsI(reqModel) {
+	// 	isPlusModel = false
+	// } else {
+	// 	reqJson.Set("model", config.DefaultModel)
+	// 	isPlusModel = false
+	// }
 	// if config.PlusModels.ContainsI(reqModel) {
 	// 	isPlusModel = true
 	// } else if config.FreeModels.Contains(reqModel) {
@@ -72,7 +72,7 @@ func Conversation(r *ghttp.Request) {
 	// 	isPlusModel = false
 	// }
 	// 遍历 config.PlusModels
-	g.Log().Debug(ctx, "isPlusModel", isPlusModel)
+	// g.Log().Debug(ctx, "isPlusModel", isPlusModel)
 	if service.SessionQueue.Len() == 0 {
 		g.Log().Error(ctx, "model.SessionQueue.Len()==0")
 		r.Response.WriteStatusExit(429)
@@ -172,32 +172,32 @@ func Conversation(r *ghttp.Request) {
 		r.Response.WriteStatusExit(401)
 		return
 	}
-	if resp.StatusCode == 429 {
-		resStr := resp.ReadAllString()
+	// if resp.StatusCode == 429 {
+	// 	resStr := resp.ReadAllString()
 
-		clears_in = gjson.New(resStr).Get("detail.clears_in").Int()
-		detail := gjson.New(resStr).Get("detail").String()
+	// 	clears_in = gjson.New(resStr).Get("detail.clears_in").Int()
+	// 	detail := gjson.New(resStr).Get("detail").String()
 
-		if clears_in > 0 {
-			g.Log().Error(ctx, emailStr, "resp.StatusCode==430", resStr)
+	// 	if clears_in > 0 {
+	// 		g.Log().Error(ctx, emailStr, "resp.StatusCode==430", resStr)
 
-			r.Response.WriteStatusExit(430, resStr)
-			return
-		} else {
-			if detail == "You've reached our limit of messages per 24 hours. Please try again later." {
-				returnQueue = false
-				g.Log().Error(ctx, emailStr, "PLUS失效 resp.StatusCode==429", resStr)
-				cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "remark": "PLUS过期｜" + resStr})
+	// 		r.Response.WriteStatusExit(430, resStr)
+	// 		return
+	// 	} else {
+	// 		if detail == "You've reached our limit of messages per 24 hours. Please try again later." {
+	// 			returnQueue = false
+	// 			g.Log().Error(ctx, emailStr, "PLUS失效 resp.StatusCode==429", resStr)
+	// 			cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "remark": "PLUS过期｜" + resStr})
 
-				r.Response.WriteStatusExit(429, resStr)
-				return
-			}
-			g.Log().Error(ctx, emailStr, "resp.StatusCode==429", resStr)
+	// 			r.Response.WriteStatusExit(429, resStr)
+	// 			return
+	// 		}
+	// 		g.Log().Error(ctx, emailStr, "resp.StatusCode==429", resStr)
 
-			r.Response.WriteStatusExit(429, resStr)
-			return
-		}
-	}
+	// 		r.Response.WriteStatusExit(429, resStr)
+	// 		return
+	// 	}
+	// }
 	if resp.StatusCode != 200 {
 		g.Log().Error(ctx, emailStr, "resp.StatusCode!=200", resp.StatusCode, resp.ReadAllString())
 		r.Response.WriteStatusExit(resp.StatusCode, resp.ReadAllString())
@@ -220,6 +220,29 @@ func Conversation(r *ghttp.Request) {
 		messagBody := ""
 		conversationId := ""
 		modelSlug := ""
+		// 清理会话
+		defer func() {
+			go func() {
+				ctx := gctx.New()
+				if !reqJson.Get("history_and_training_disabled").Bool() {
+					g.Log().Info(ctx, "清理会话", conversationId)
+					clearres, err := g.Client().SetHeaderMap(g.MapStrStr{
+						"Authorization": "Bearer " + accessToken,
+						"User-Agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/119.0",
+					}).ContentJson().Patch(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation/"+conversationId, g.Map{
+						"is_visible": false,
+					})
+					if err != nil {
+						g.Log().Error(ctx, "清理会话失败", conversationId, err)
+					}
+					defer clearres.Close()
+					clearres.RawDump()
+				} else {
+					g.Log().Info(ctx, "不清理会话", conversationId)
+				}
+			}()
+
+		}()
 		streamOption := eventsource.DecoderOptionReadTimeout(600 * time.Second)
 		// eventsource.NewSliceRepository()
 		decoder := eventsource.NewDecoderWithOptions(resp.Body, streamOption)
@@ -403,11 +426,11 @@ func Conversation(r *ghttp.Request) {
 			return
 		}
 		flusher.Flush()
-		if reqModel != modelSlug {
-			g.Log().Error(ctx, emailStr, "reqModel != modelSlug", reqModel, modelSlug)
-			returnQueue = false
-			cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "isPlus": 0, "remark": reqModel + "!=" + modelSlug + "|PLUS过期"})
-		}
+		// if reqModel != modelSlug {
+		// 	g.Log().Error(ctx, emailStr, "reqModel != modelSlug", reqModel, modelSlug)
+		// 	returnQueue = false
+		// 	cool.DBM(model.NewChatgptSession()).Where("email", emailStr).Update(g.Map{"status": 0, "isPlus": 0, "remark": reqModel + "!=" + modelSlug + "|PLUS过期"})
+		// }
 		r.ExitAll()
 
 		return

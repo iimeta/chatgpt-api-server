@@ -82,15 +82,11 @@ func RefreshSession(ctx g.Ctx) {
 			g.Log().Error(ctx, "RefreshSession", err)
 			continue
 		}
-		if IsPlusAccount == 1 {
-			service.SessionQueue.Push(v["email"].String())
-			config.TokenCache.Set(ctx, v["email"].String(), sessionJson.Get("accessToken").String(), 0)
+		// service.SessionQueue.Push(v["email"].String())
+		config.TokenCache.Set(ctx, v["email"].String(), sessionJson.Get("accessToken").String(), 0)
 
-			g.Log().Info(ctx, "RefreshSession", v["email"], "success")
-			g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "success")
-		} else {
-			g.Log().Info(ctx, "RefreshSession", v["email"], "not plus")
-		}
+		g.Log().Info(ctx, "RefreshSession", v["email"], "success")
+		g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "success")
 
 	}
 
@@ -144,15 +140,12 @@ func OnStartRefreshSession(ctx g.Ctx) {
 			g.Log().Error(ctx, "RefreshSession", err)
 			continue
 		}
-		if IsPlusAccount == 1 {
-			service.SessionQueue.Push(v["email"].String())
-			config.TokenCache.Set(ctx, v["email"].String(), sessionJson.Get("accessToken").String(), 0)
 
-			g.Log().Info(ctx, "RefreshSession", v["email"], "success")
-			g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "success")
-		} else {
-			g.Log().Info(ctx, "RefreshSession", v["email"], "not plus")
-		}
+		service.SessionQueue.Push(v["email"].String())
+		config.TokenCache.Set(ctx, v["email"].String(), sessionJson.Get("accessToken").String(), 0)
+
+		g.Log().Info(ctx, "RefreshSession", v["email"], "success")
+		g.Log().Info(ctx, "~~~~~~~~~~~~~~~RefreshSession", v["email"], "success")
 
 	}
 

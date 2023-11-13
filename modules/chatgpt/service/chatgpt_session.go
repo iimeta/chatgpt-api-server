@@ -164,19 +164,11 @@ func init() {
 			continue
 		}
 
-		sessionJson := gjson.New(sessionRecord["officialSession"].String())
-		IsPlusAccount := 0
-		models := sessionJson.GetJson("models")
+		g.Log().Info(ctx, "add sessionPair", sessionRecord["email"].String(), accessToken)
+		SessionQueue.Push(sessionRecord["email"].String())
+		config.TokenCache.Set(ctx, sessionRecord["email"].String(), accessToken, 0)
 
-		if len(models.Array()) > 1 {
-			IsPlusAccount = 1
-		}
-		if IsPlusAccount == 1 {
-			g.Log().Info(ctx, "add sessionPair", sessionRecord["email"].String(), accessToken)
-			SessionQueue.Push(sessionRecord["email"].String())
-			config.TokenCache.Set(ctx, sessionRecord["email"].String(), accessToken, 0)
-		} else {
-			g.Log().Info(ctx, "not plus", sessionRecord["email"].String())
-		}
+		g.Log().Info(ctx, "not plus", sessionRecord["email"].String())
+
 	}
 }
