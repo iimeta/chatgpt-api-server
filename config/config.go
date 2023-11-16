@@ -37,6 +37,7 @@ func init() {
 	PlusModels.Append("gpt-4-mobile")
 	PlusModels.Append("gpt-4-dalle")
 	PlusModels.Append("gpt-4-code-interpreter")
+	PlusModels.Append("gpt-4-gizmo")
 }
 
 func PORT(ctx g.Ctx) int {
