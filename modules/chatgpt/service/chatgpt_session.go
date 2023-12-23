@@ -29,8 +29,8 @@ func NewChatgptSessionService() *ChatgptSessionService {
 				"password": "密码不能为空",
 			},
 			PageQueryOp: &cool.QueryOp{
-				FieldEQ:      []string{"email", "password", "remark"},
-				KeyWordField: []string{"email", "password", "remark"},
+				FieldEQ:      []string{"email", "password", "officialSession", "remark"},
+				KeyWordField: []string{"email", "password", "officialSession", "remark"},
 			},
 		},
 	}
@@ -39,9 +39,11 @@ func NewChatgptSessionService() *ChatgptSessionService {
 // MofifyBefore 新增/删除/修改之前的操作
 func (s *ChatgptSessionService) ModifyBefore(ctx g.Ctx, method string, param map[string]interface{}) (err error) {
 	g.Log().Debug(ctx, "ChatgptSessionService.ModifyBefore", method, param)
+
+	// g.Dump(idsJson)
 	// 如果是删除，就删除缓存及set
 	if method == "Delete" {
-		ids := param["ids"].([]int)
+		ids := gjson.New(param["ids"]).Array()
 		for _, id := range ids {
 			record, err := cool.DBM(s.Model).Where("id=?", id).One()
 			if err != nil {
