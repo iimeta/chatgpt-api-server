@@ -3,6 +3,7 @@ package backendapi
 import (
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
+	"chatgpt-api-server/utility"
 	"fmt"
 	"io"
 	"net/http"
@@ -101,6 +102,8 @@ func Conversation(r *ghttp.Request) {
 	clears_in := 0
 	// plus失效
 	isPlusInvalid := false
+	// 是否归还
+	isReturn := true
 
 	// 如果带有conversation_id，说明是继续会话，需要获取email	并获取accessToken
 	conversation_id := reqJson.Get("conversation_id").String()
@@ -141,7 +144,7 @@ func Conversation(r *ghttp.Request) {
 			}
 			defer func() {
 				go func() {
-					if email != "" {
+					if email != "" && isReturn {
 						if isPlusInvalid {
 							// 如果plus失效，将isPlus设置为0
 							cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
@@ -186,7 +189,7 @@ func Conversation(r *ghttp.Request) {
 			}
 			defer func() {
 				go func() {
-					if email != "" {
+					if email != "" && isReturn {
 						config.NormalSet.Add(email)
 					}
 				}()
@@ -206,11 +209,14 @@ func Conversation(r *ghttp.Request) {
 		var sessionCache *config.CacheSession
 		cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
 		accessToken := sessionCache.AccessToken
-		if accessToken == "" {
-			g.Log().Error(ctx, "Get accessToken from cache error")
-			r.Response.Status = 500
+		err = utility.CheckAccessToken(accessToken)
+		if err != nil { // accessToken失效
+			g.Log().Error(ctx, err)
+			isReturn = false
+			go RefreshSession(email)
+			r.Response.Status = 401
 			r.Response.WriteJson(g.Map{
-				"detail": "Server is busy, please try again later",
+				"detail": "accessToken is invalid,will be refresh",
 			})
 			return
 		}
@@ -234,7 +240,7 @@ func Conversation(r *ghttp.Request) {
 	// 如果返回401 说明token过期，需要重新获取token 先删除sessionPair 并将status设置为0
 	if resp.StatusCode == 401 {
 		g.Log().Error(ctx, "token过期,需要重新获取token", email, resp.ReadAllString())
-
+		isReturn = false
 		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
 		go RefreshSession(email)
 		r.Response.WriteStatusExit(401)

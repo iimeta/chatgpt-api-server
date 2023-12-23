@@ -10,4 +10,5 @@ func init() {
 	s := g.Server()
 	v1Group := s.Group("/v1")
 	v1Group.ALL("/chat/completions", chat.Completions)
+	v1Group.ALL("/chat/gpt4v", chat.Gpt4v)
 }

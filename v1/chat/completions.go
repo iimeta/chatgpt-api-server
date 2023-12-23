@@ -6,6 +6,7 @@ import (
 	backendapi "chatgpt-api-server/backend-api"
 	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
+	"chatgpt-api-server/utility"
 	"context"
 	"fmt"
 	"io"
@@ -323,6 +324,8 @@ func Completions(r *ghttp.Request) {
 	clears_in := 0
 	// plus失效
 	isPlusInvalid := false
+	// 是否归还
+	isReturn := true
 	isPlusModel := gstr.HasPrefix(req.Model, "gpt-4")
 	if isPlusModel {
 		Traceparent := r.Header.Get("Traceparent")
@@ -338,7 +341,7 @@ func Completions(r *ghttp.Request) {
 
 		defer func() {
 			go func() {
-				if email != "" {
+				if email != "" && isReturn {
 					if isPlusInvalid {
 						// 如果plus失效，将isPlus设置为0
 						cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
@@ -384,7 +387,7 @@ func Completions(r *ghttp.Request) {
 		}
 		defer func() {
 			go func() {
-				if email != "" {
+				if email != "" && isReturn {
 					config.NormalSet.Add(email)
 				}
 			}()
@@ -407,11 +410,17 @@ func Completions(r *ghttp.Request) {
 	var sessionCache *config.CacheSession
 	cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
 	accessToken := sessionCache.AccessToken
-	if accessToken == "" {
-		g.Log().Error(ctx, "Get accessToken from cache error")
-		r.Response.Status = 500
+	err = utility.CheckAccessToken(accessToken)
+	if err != nil { // accessToken失效
+		g.Log().Error(ctx, err)
+		isReturn = false
+		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
+		isReturn = false
+
+		go backendapi.RefreshSession(email)
+		r.Response.Status = 401
 		r.Response.WriteJson(g.Map{
-			"detail": "Server is busy, please try again later",
+			"detail": "accessToken is invalid,will be refresh",
 		})
 		return
 	}
@@ -439,7 +448,7 @@ func Completions(r *ghttp.Request) {
 	defer resp.Close()
 	if resp.StatusCode == 401 {
 		g.Log().Error(ctx, "token过期,需要重新获取token", email, resp.ReadAllString())
-
+		isReturn = false
 		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
 		go backendapi.RefreshSession(email)
 		r.Response.WriteStatus(401, resp.ReadAllString())
