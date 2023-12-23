@@ -16,7 +16,7 @@ import (
 
 func init() {
 	ctx := gctx.GetInitCtx()
-	AddAllSession(ctx)
+	go AddAllSession(ctx)
 	corn, err := gcron.AddSingleton(ctx, config.CRONINTERVAL(ctx), AddAllSession, "RefreshSession")
 	if err != nil {
 		panic(err)
@@ -39,6 +39,12 @@ func AddAllSession(ctx g.Ctx) {
 		accessToken := officialSession.Get("accessToken").String()
 		refreshToken := officialSession.Get("refresh_token").String()
 		detail := officialSession.Get("detail").String()
+		models := officialSession.Get("models").Array()
+		if len(models) > 1 {
+			isPlus = 1
+		} else {
+			isPlus = 0
+		}
 		// 检测accessToken 是否过期,如果过期，就刷新
 		err := utility.CheckAccessToken(accessToken)
 		if err != nil {
@@ -62,7 +68,7 @@ func AddAllSession(ctx g.Ctx) {
 			sessionJson := gjson.New(sessionVar)
 			accessToken = sessionJson.Get("accessToken").String()
 			if accessToken == "" {
-				g.Log().Error(ctx, "AddAllSession", "get session error", sessionJson)
+				g.Log().Error(ctx, "AddAllSession", email, "get session error", sessionJson)
 				detail := sessionJson.Get("detail").String()
 				if detail == "密码不正确" || gstr.Contains(detail, "account_deactivated") {
 					g.Log().Error(ctx, "AddAllSession", email, detail)
@@ -86,6 +92,7 @@ func AddAllSession(ctx g.Ctx) {
 				"status":          1,
 			})
 		}
+
 		// 添加到缓存
 		cacheSession := &config.CacheSession{
 			Email:        email,
@@ -112,6 +119,7 @@ func AddAllSession(ctx g.Ctx) {
 
 		}
 	}
+
 	g.Log().Info(ctx, "AddSession finish", "plusSet", config.PlusSet.Size(), "normalSet", config.NormalSet.Size())
 
 }
