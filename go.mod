@@ -10,6 +10,7 @@ require (
 	github.com/cool-team-official/cool-admin-go/modules/dict v1.5.5
 	github.com/cool-team-official/cool-admin-go/modules/space v1.5.5
 	github.com/cool-team-official/cool-admin-go/modules/task v1.5.5
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gogf/gf v1.16.9
 	github.com/gogf/gf/v2 v2.6.1
 )

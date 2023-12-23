@@ -4,7 +4,7 @@
 URL="http://127.0.0.1:8001/backend-api/conversation"
 
 # 设置token
-TOKEN="1c0b193c-d412-41ee-a96f-5435f6c1d2e8"
+TOKEN="4c22dd31-23b3-4e72-8589-e88f47c087b9"
 
 # 设置请求体数据
 DATA='{
@@ -18,7 +18,7 @@ DATA='{
             "content": {
                 "content_type": "text",
                 "parts": [
-                    "讲个故事吧\n"
+                    "hi\n"
                 ]
             }
         }

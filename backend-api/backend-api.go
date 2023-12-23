@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gcache"
@@ -52,21 +53,59 @@ func ProxyAll(r *ghttp.Request) {
 	Traceparent = TraceparentArr[1]
 	g.Log().Info(ctx, "Traceparent", Traceparent)
 
-	record, err := cool.DBM(model.NewChatgptUser()).Where("userToken", userToken).Where("isPlus", 1).One()
+	userRecord, err := cool.DBM(model.NewChatgptUser()).Where("userToken", userToken).Where("expireTime>now()").Where("isPlus", 1).Cache(gdb.CacheOption{
+		Duration: 10 * time.Minute,
+		Name:     "userToken:" + userToken,
+		Force:    true,
+	}).One()
 	if err != nil {
 		g.Log().Error(ctx, err)
-		r.Response.WriteStatusExit(500)
+		r.Response.Status = 500
+		r.Response.WriteJson(g.Map{
+			"detail": err.Error(),
+		})
+		return
 	}
-	if record.IsEmpty() {
-		g.Log().Error(ctx, "userToken not found", userToken)
-		r.Response.WriteStatusExit(401)
+	if userRecord.IsEmpty() {
+		r.Response.Status = 401
+		r.Response.WriteJson(g.Map{
+			"detail": "userToken not found",
+		})
+		return
 	}
-	accessToken := TraceparentCache.MustGet(ctx, Traceparent).String()
-	if accessToken == "" {
-		sessionPair, code, err := ChatgptUserService.GetSessionPair(ctx, userToken, "", true)
+	accessToken := ""
+	email := TraceparentCache.MustGet(ctx, Traceparent).String()
+	if email == "" {
+		emailPop := config.PlusSet.Pop()
+		if emailPop == nil {
+			g.Log().Error(ctx, "emailPop is nil")
+			r.Response.Status = 500
+			r.Response.WriteJson(g.Map{
+				"detail": "emailPop is nil",
+			})
+			return
+		}
+		defer func() {
+			config.PlusSet.Add(emailPop)
+		}()
+		email = emailPop.(string)
+		var sessionPair *config.CacheSession
+		err := cool.CacheManager.MustGet(ctx, "session:"+email).Scan(sessionPair)
 		if err != nil {
-			g.Log().Error(ctx, code, err)
-			r.Response.WriteStatusExit(code)
+			g.Log().Error(ctx, err)
+			r.Response.Status = 500
+			r.Response.WriteJson(g.Map{
+				"detail": err.Error(),
+			})
+			return
+		}
+		accessToken = sessionPair.AccessToken
+		if accessToken == "" {
+			g.Log().Error(ctx, "accessToken is nil")
+			r.Response.Status = 500
+			r.Response.WriteJson(g.Map{
+				"detail": "accessToken is nil",
+			})
 			return
 		}
 

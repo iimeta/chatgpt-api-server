@@ -12,13 +12,14 @@ import (
 	"github.com/launchdarkly/eventsource"
 
 	"github.com/gogf/gf/os/gctx"
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/text/gstr"
 )
 
 var (
-	// USERTOKENLOCKMAP = make(map[string]*gmutex.Mutex)
 	client = g.Client()
 
 	continueRequest = `{"action":"continue","conversation_id":"f8cdda28-fcae-4dc8-b8b6-687af2741ee7","parent_message_id":"c22837bf-c1f9-4579-a2b4-71102670cfe2","model":"text-davinci-002-render-sha","timezone_offset_min":-480,"history_and_training_disabled":false}`
@@ -27,17 +28,63 @@ var (
 func Conversation(r *ghttp.Request) {
 
 	ctx := r.GetCtx()
-	// if r.Header.Get("Authorization") == "" {
-	// 	r.Response.WriteStatusExit(401)
-	// }
+	if r.Header.Get("Authorization") == "" {
+		r.Response.Status = 401
+		r.Response.WriteJson(g.Map{
+			"detail": "Authentication credentials were not provided.",
+		})
+	}
+	if len(r.Header.Get("Authorization")) < 7 {
+		r.Response.Status = 401
+		r.Response.WriteJson(g.Map{
+			"detail": "Authentication credentials were not provided.",
+		})
+	}
 	// 获取 Header 中的 Authorization	去除 Bearer
 	userToken := r.Header.Get("Authorization")[7:]
 	// 如果 Authorization 为空，返回 401
 	if userToken == "" {
-		r.Response.WriteStatusExit(401)
+		r.Response.Status = 401
+		r.Response.WriteJson(g.Map{
+			"detail": "Authentication credentials were not provided.",
+		})
 	}
-	reqJson := gjson.New(r.GetBody())
+	reqJson, err := r.GetJson()
+	if err != nil {
+		g.Log().Error(ctx, err)
+		r.Response.Status = 400
+		r.Response.WriteJson(g.Map{
+			"detail": "unable to parse request body",
+		})
+		return
+	}
 	g.Log().Debug(ctx, userToken, reqJson)
+	isPlusUser := false
+	if !config.ISFREE(ctx) {
+		userRecord, err := cool.DBM(model.NewChatgptUser()).Where("userToken", userToken).Where("expireTime>now()").Cache(gdb.CacheOption{
+			Duration: 10 * time.Minute,
+			Name:     "userToken:" + userToken,
+			Force:    true,
+		}).One()
+		if err != nil {
+			g.Log().Error(ctx, err)
+			r.Response.Status = 500
+			r.Response.WriteJson(g.Map{
+				"detail": err.Error(),
+			})
+			return
+		}
+		if userRecord.IsEmpty() {
+			r.Response.Status = 401
+			r.Response.WriteJson(g.Map{
+				"detail": "userToken not found",
+			})
+			return
+		}
+		if userRecord["isPlus"].Int() == 1 {
+			isPlusUser = true
+		}
+	}
 	reqModel := reqJson.Get("model").String()
 	history_and_training_disabled := reqJson.Get("history_and_training_disabled").Bool()
 	var isPlusModel bool
@@ -51,69 +98,142 @@ func Conversation(r *ghttp.Request) {
 		reqJson.Set("model", config.DefaultModel)
 		isPlusModel = false
 	}
-	// if config.PlusModels.ContainsI(reqModel) {
-	// 	isPlusModel = true
-	// } else if config.FreeModels.Contains(reqModel) {
-	// 	isPlusModel = false
-	// } else {
-	// 	reqJson.Set("model", config.DefaultModel)
-	// 	isPlusModel = false
-	// }
-	// 遍历 config.PlusModels
 	g.Log().Debug(ctx, "isPlusModel", isPlusModel)
-
-	sessionPair, code, err := ChatgptUserService.GetSessionPair(ctx, userToken, reqJson.Get("conversation_id").String(), isPlusModel)
-	if err != nil {
-		g.Log().Error(ctx, code, err)
-		r.Response.WriteStatusExit(code)
+	// 如果是plus模型，但是用户不是plus用户，则返回501
+	if isPlusModel && !isPlusUser {
+		r.Response.Status = 501
+		r.Response.WriteJson(g.Map{
+			"detail": "userToken is not plus user",
+		})
 		return
 	}
-	// g.Dump(sessionPair)
-	// 如果 sessionPair 为空，返回 500
-	if sessionPair == nil {
-		r.Response.WriteStatusExit(500)
-		return
-	}
-	// 如果配置了  USERTOKENLOCK ,则加锁限制每个用户只能有一个会话并发
-	if config.USERTOKENLOCK(ctx) && isPlusModel {
-		g.Log().Debug(ctx, "USERTOKENLOCK", config.USERTOKENLOCK(ctx))
-		// 如果 USERTOKENLOCKMAP 中没有这个用户的锁，则创建一个
-		// if _, ok := USERTOKENLOCKMAP[userToken]; !ok {
-		// 	USERTOKENLOCKMAP[userToken] = gmutex.New()
-		// }
-		// // 加锁
-		// if USERTOKENLOCKMAP[userToken].TryLock() {
-		// 	g.Log().Debug(ctx, userToken, "加锁USERTOKENLOCK")
-		// 	// 延迟解锁
-		// 	defer func() {
-		// 		// 延时1秒
-		// 		time.Sleep(time.Second)
-		// 		USERTOKENLOCKMAP[userToken].Unlock()
-		// 		g.Log().Debug(ctx, userToken, "解锁USERTOKENLOCK")
-		// 	}()
-		// } else {
-		// 	g.Log().Info(ctx, userToken, "触发USERTOKENLOCK,返回429")
-		// 	r.Response.WriteStatusExit(429)
-		// 	return
-		// }
+	email := ""
+	clears_in := 0
+	// plus失效
+	isPlusInvalid := false
+
+	// 如果带有conversation_id，说明是继续会话，需要获取email	并获取accessToken
+	conversation_id := reqJson.Get("conversation_id").String()
+	if conversation_id != "" {
+		email = cool.CacheManager.MustGet(ctx, "conversation:"+conversation_id).String()
+		if email == "" {
+			r.Response.Status = 404
+			r.Response.WriteJson(g.Map{
+				"detail": "conversation_id not found",
+			})
+			return
+		}
+		// 使用email获取 accessToken
+		var sessionCache *config.CacheSession
+		cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
+		accessToken := sessionCache.AccessToken
+		if accessToken == "" {
+			r.Response.Status = 404
+			r.Response.WriteJson(g.Map{
+				"detail": "accessToken not found",
+			})
+			return
+		}
+		client.SetHeader("Authorization", "Bearer "+accessToken)
+	} else {
+		// 如果不带conversation_id，说明是新会话，需要获取email	并获取accessToken
+
+		if isPlusModel {
+			Traceparent := r.Header.Get("Traceparent")
+			// Traceparent like 00-d8c66cc094b38d1796381c255542f971-09988d8458a2352c-01 获取第二个参数
+			// 以-分割，取第二个参数
+			TraceparentArr := gstr.Split(Traceparent, "-")
+			if len(TraceparentArr) < 2 {
+				g.Log().Error(ctx, "Traceparent error", Traceparent)
+				r.Response.WriteStatusExit(401)
+			}
+			// 获取第二个参数
+			Traceparent = TraceparentArr[1]
+			g.Log().Info(ctx, "Traceparent", Traceparent)
+			email := TraceparentCache.MustGet(ctx, Traceparent).String()
+			defer func() {
+				go func() {
+					if email != "" {
+						if isPlusInvalid {
+							// 如果plus失效，将isPlus设置为0
+							cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+								"isPlus": 0,
+							})
+							// 从set中删除
+							config.PlusSet.Remove(email)
+							// 添加到set
+							config.NormalSet.AddIfNotExist(email)
+							return
+						}
+						if clears_in > 0 {
+							// 延迟归还
+							time.Sleep(time.Duration(clears_in) * time.Second)
+						}
+						config.PlusSet.Add(email)
+					}
+				}()
+			}()
+			if email == "" {
+				emailPop := config.PlusSet.Pop()
+				if emailPop == nil {
+					g.Log().Error(ctx, "Get email from set error")
+					r.Response.Status = 500
+					r.Response.WriteJson(g.Map{
+						"detail": "Server is busy, please try again later",
+					})
+					return
+				}
+
+				email = emailPop.(string)
+			}
+		} else {
+			emailPop := config.NormalSet.Pop()
+			if emailPop == nil {
+				g.Log().Error(ctx, "Get email from set error")
+				r.Response.Status = 500
+				r.Response.WriteJson(g.Map{
+					"detail": "Server is busy, please try again later",
+				})
+				return
+			}
+			defer func() {
+				go func() {
+					if email != "" {
+						config.NormalSet.Add(email)
+					}
+				}()
+			}()
+
+			email = emailPop.(string)
+		}
+		if email == "" {
+			g.Log().Error(ctx, "Get email from set error")
+			r.Response.Status = 500
+			r.Response.WriteJson(g.Map{
+				"detail": "Server is busy, please try again later",
+			})
+			return
+		}
+		// 使用email获取 accessToken
+		var sessionCache *config.CacheSession
+		cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
+		accessToken := sessionCache.AccessToken
+		if accessToken == "" {
+			g.Log().Error(ctx, "Get accessToken from cache error")
+			r.Response.Status = 500
+			r.Response.WriteJson(g.Map{
+				"detail": "Server is busy, please try again later",
+			})
+			return
+		}
+
+		client.SetHeader("Authorization", "Bearer "+accessToken)
 	}
 
-	// 加锁 防止并发
-	// gmlock.Lock(sessionPair.Email)
-	// g.Log().Info(ctx, userToken, "加锁sessionPair.Lock", sessionPair.Email)
-	// // 延迟解锁
-	// defer func() {
-	// 	// 延时1秒
-	// 	go func() {
-	// 		time.Sleep(10 * time.Second)
-	// 		gmlock.Unlock(sessionPair.Email)
-	// 		g.Log().Info(ctx, userToken, "解锁sessionPair.Lock", sessionPair.Email)
-	// 	}()
-	// }()
-	// client := g.Client()
-	client.SetHeader("Authorization", "Bearer "+sessionPair.AccessToken)
 	client.SetHeader("Content-Type", "application/json")
 	client.SetHeader("authkey", config.AUTHKEY(ctx))
+	realModel := reqJson.Get("model").String()
+	g.Log().Info(ctx, userToken, "使用", email, realModel, "->", realModel, "发起会话")
 
 	resp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", reqJson)
 	if err != nil {
@@ -125,38 +245,38 @@ func Conversation(r *ghttp.Request) {
 	g.Log().Debug(ctx, resp.StatusCode, resp.Header.Get("Content-Type"))
 	// 如果返回401 说明token过期，需要重新获取token 先删除sessionPair 并将status设置为0
 	if resp.StatusCode == 401 {
-		g.Log().Error(ctx, "token过期，需要重新获取token", sessionPair.Email, sessionPair.AccessToken, resp.ReadAllString())
+		g.Log().Error(ctx, "token过期,需要重新获取token", email, resp.ReadAllString())
 
-		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
-		go RefreshSession(sessionPair.Email)
+		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
+		go RefreshSession(email)
 		r.Response.WriteStatusExit(401)
 		return
 	}
 	if resp.StatusCode == 429 {
 		resStr := resp.ReadAllString()
 
-		clears_in := gjson.New(resStr).Get("detail.clears_in").Int()
+		clears_in = gjson.New(resStr).Get("detail.clears_in").Int()
 
 		if clears_in > 0 {
-			g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode==430", resStr)
+			g.Log().Error(ctx, email, "resp.StatusCode==430", resStr)
 
 			r.Response.WriteStatusExit(430, resStr)
 			return
 		} else {
-			g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode==429", resStr)
+			g.Log().Error(ctx, email, "resp.StatusCode==429", resStr)
 
 			r.Response.WriteStatusExit(429, resStr)
 			return
 		}
 	}
 	if resp.StatusCode != 200 {
-		g.Log().Error(ctx, sessionPair.Email, "resp.StatusCode!=200", resp.StatusCode, resp.ReadAllString())
+		g.Log().Error(ctx, email, "resp.StatusCode!=200", resp.StatusCode, resp.ReadAllString())
 		r.Response.WriteStatusExit(resp.StatusCode, resp.ReadAllString())
 		return
 	}
 
 	if resp.StatusCode == 200 && resp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
-		r.Response.Header().Set("Content-Type", "text/event-stream")
+		r.Response.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 		r.Response.Header().Set("Cache-Control", "no-cache")
 		r.Response.Header().Set("Connection", "keep-alive")
 		//  流式回应
@@ -189,7 +309,7 @@ func Conversation(r *ghttp.Request) {
 				continue
 			}
 			if text == "[DONE]" {
-				_, err = fmt.Fprintf(rw, "data: %s\n\n", text)
+				_, err = fmt.Fprint(rw, "data: "+text+"\n\n")
 				if err != nil {
 					g.Log().Error(ctx, "fmt.Fprintf error", err)
 					r.Response.WriteStatusExit(500)
@@ -239,6 +359,10 @@ func Conversation(r *ghttp.Request) {
 		g.Log().Debug(ctx, "conversationId", conversationId)
 		g.Log().Debug(ctx, "modelSlug", modelSlug)
 		g.Log().Debug(ctx, "messageId", messageId)
+		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
+			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "PLUS失效")
+		}
+
 		// g.Log().Debug(ctx, "messagBody", messagBody)
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
 		count := 0
@@ -259,7 +383,9 @@ func Conversation(r *ghttp.Request) {
 			defer continueresp.Close()
 			defer continueresp.Body.Close()
 			g.Log().Debug(ctx, "continueresp.StatusCode", continueresp.StatusCode)
-			if continueresp.StatusCode == 200 && continueresp.Header.Get("Content-Type") == "text/event-stream; charset=utf-8" {
+			if continueresp.StatusCode != 200 || continueresp.Header.Get("Content-Type") != "text/event-stream; charset=utf-8" {
+				break
+			} else {
 				decoder := eventsource.NewDecoderWithOptions(continueresp.Body, streamOption)
 				continueMessage := ""
 				for {
@@ -333,19 +459,13 @@ func Conversation(r *ghttp.Request) {
 				continueresp.Body.Close()
 				continueresp.Close()
 
-			} else {
-				break
 			}
 
 		}
-		// 如果请求的会话ID与返回的会话ID不一致，说明是新的会话，需要插入数据库
+		// 如果请求的会话ID与返回的会话ID不一致，说明是新的会话 需要写入缓存
 		if reqJson.Get("conversation_id").String() != conversationId {
 			if !history_and_training_disabled {
-				cool.DBM(model.NewChatgptConversation()).Insert(g.Map{
-					"userToken":      userToken,
-					"email":          sessionPair.Email,
-					"conversationId": conversationId,
-				})
+				cool.CacheManager.Set(ctx, "conversation:"+conversationId, email, time.Hour*24*30)
 			}
 		}
 		r.ExitAll()
@@ -368,12 +488,12 @@ func RefreshSession(email string) {
 	// time.Sleep(5 * time.Minute)
 	getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
 	var sessionJson *gjson.Json
-	refreshToken := gjson.New(result["officialSession"]).Get("refreshToken").String()
+	refreshToken := gjson.New(result["officialSession"]).Get("refresh_token").String()
 	sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
-		"username":     result["email"],
-		"password":     result["password"],
-		"refreshToken": refreshToken,
-		"authkey":      config.AUTHKEY(ctx),
+		"username":      result["email"],
+		"password":      result["password"],
+		"refresh_token": refreshToken,
+		"authkey":       config.AUTHKEY(ctx),
 	})
 	sessionJson = gjson.New(sessionVar)
 	if sessionJson.Get("accessToken").String() == "" {

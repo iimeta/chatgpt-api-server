@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/gogf/gf/container/gset"
 	"github.com/gogf/gf/v2/container/garray"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -14,7 +15,7 @@ func CHATPROXY(ctx g.Ctx) string {
 }
 
 func AUTHKEY(ctx g.Ctx) string {
-	g.Log().Debug(ctx, "config.AUTHKEY", g.Cfg().MustGetWithEnv(ctx, "AUTHKEY").String())
+	// g.Log().Debug(ctx, "config.AUTHKEY", g.Cfg().MustGetWithEnv(ctx, "AUTHKEY").String())
 	return g.Cfg().MustGetWithEnv(ctx, "AUTHKEY").String()
 }
 
@@ -26,22 +27,12 @@ var (
 	DefaultModel = "text-davinci-002-render-sha"
 	FreeModels   = garray.NewStrArray()
 	PlusModels   = garray.NewStrArray()
+	NormalSet    = gset.New(true)
+	PlusSet      = gset.New(true)
 )
 
-func init() {
-	FreeModels.Append("text-davinci-002-render-sha")
-	FreeModels.Append("text-davinci-002-render-sha-mobile")
-	PlusModels.Append("gpt-4")
-	PlusModels.Append("gpt-4-browsing")
-	PlusModels.Append("gpt-4-plugins")
-	PlusModels.Append("gpt-4-mobile")
-	PlusModels.Append("gpt-4-dalle")
-	PlusModels.Append("gpt-4-code-interpreter")
-	PlusModels.Append("gpt-4-gizmo")
-}
-
 func PORT(ctx g.Ctx) int {
-	g.Log().Debug(ctx, "config.PORT", g.Cfg().MustGetWithEnv(ctx, "PORT").Int())
+	// g.Log().Debug(ctx, "config.PORT", g.Cfg().MustGetWithEnv(ctx, "PORT").Int())
 	if g.Cfg().MustGetWithEnv(ctx, "PORT").Int() == 0 {
 		return 8001
 	}
@@ -83,4 +74,24 @@ func CONTINUEMAX(ctx g.Ctx) int {
 		return 3
 	}
 	return g.Cfg().MustGetWithEnv(ctx, "CONTINUEMAX").Int()
+}
+
+type CacheSession struct {
+	Email        string `json:"email"`
+	AccessToken  string `json:"accessToken"`
+	IsPlus       int    `json:"isPlus"`
+	CooldownTime int64  `json:"cooldownTime"`
+}
+
+func init() {
+	FreeModels.Append("text-davinci-002-render-sha")
+	FreeModels.Append("text-davinci-002-render-sha-mobile")
+	PlusModels.Append("gpt-4")
+	PlusModels.Append("gpt-4-browsing")
+	PlusModels.Append("gpt-4-plugins")
+	PlusModels.Append("gpt-4-mobile")
+	PlusModels.Append("gpt-4-dalle")
+	PlusModels.Append("gpt-4-code-interpreter")
+	PlusModels.Append("gpt-4-gizmo")
+
 }
