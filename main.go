@@ -9,6 +9,7 @@ import (
 
 	_ "chatgpt-api-server/backend-api"
 	_ "chatgpt-api-server/modules"
+	_ "chatgpt-api-server/v1"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"

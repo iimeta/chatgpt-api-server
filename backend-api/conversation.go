@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
@@ -28,20 +29,9 @@ var (
 func Conversation(r *ghttp.Request) {
 
 	ctx := r.GetCtx()
-	if r.Header.Get("Authorization") == "" {
-		r.Response.Status = 401
-		r.Response.WriteJson(g.Map{
-			"detail": "Authentication credentials were not provided.",
-		})
-	}
-	if len(r.Header.Get("Authorization")) < 7 {
-		r.Response.Status = 401
-		r.Response.WriteJson(g.Map{
-			"detail": "Authentication credentials were not provided.",
-		})
-	}
+
 	// 获取 Header 中的 Authorization	去除 Bearer
-	userToken := r.Header.Get("Authorization")[7:]
+	userToken := strings.TrimPrefix(r.Header.Get("authorization"), "Bearer ")
 	// 如果 Authorization 为空，返回 401
 	if userToken == "" {
 		r.Response.Status = 401
@@ -139,18 +129,17 @@ func Conversation(r *ghttp.Request) {
 		// 如果不带conversation_id，说明是新会话，需要获取email	并获取accessToken
 
 		if isPlusModel {
+			email := ""
 			Traceparent := r.Header.Get("Traceparent")
 			// Traceparent like 00-d8c66cc094b38d1796381c255542f971-09988d8458a2352c-01 获取第二个参数
 			// 以-分割，取第二个参数
 			TraceparentArr := gstr.Split(Traceparent, "-")
-			if len(TraceparentArr) < 2 {
-				g.Log().Error(ctx, "Traceparent error", Traceparent)
-				r.Response.WriteStatusExit(401)
+			if len(TraceparentArr) >= 2 {
+				// 获取第二个参数
+				Traceparent = TraceparentArr[1]
+				g.Log().Info(ctx, "Traceparent", Traceparent)
+				email = config.TraceparentCache.MustGet(ctx, Traceparent).String()
 			}
-			// 获取第二个参数
-			Traceparent = TraceparentArr[1]
-			g.Log().Info(ctx, "Traceparent", Traceparent)
-			email := TraceparentCache.MustGet(ctx, Traceparent).String()
 			defer func() {
 				go func() {
 					if email != "" {
@@ -162,7 +151,7 @@ func Conversation(r *ghttp.Request) {
 							// 从set中删除
 							config.PlusSet.Remove(email)
 							// 添加到set
-							config.NormalSet.AddIfNotExist(email)
+							config.NormalSet.Add(email)
 							return
 						}
 						if clears_in > 0 {
@@ -174,8 +163,9 @@ func Conversation(r *ghttp.Request) {
 				}()
 			}()
 			if email == "" {
-				emailPop := config.PlusSet.Pop()
-				if emailPop == nil {
+				g.Log().Info(ctx, config.PlusSet.Size())
+				emailPop, ok := config.PlusSet.Pop()
+				if !ok {
 					g.Log().Error(ctx, "Get email from set error")
 					r.Response.Status = 500
 					r.Response.WriteJson(g.Map{
@@ -184,11 +174,12 @@ func Conversation(r *ghttp.Request) {
 					return
 				}
 
-				email = emailPop.(string)
+				email = emailPop
 			}
 		} else {
-			emailPop := config.NormalSet.Pop()
-			if emailPop == nil {
+			g.Log().Info(ctx, config.NormalSet.Size())
+			emailPop, ok := config.NormalSet.Pop()
+			if !ok {
 				g.Log().Error(ctx, "Get email from set error")
 				r.Response.Status = 500
 				r.Response.WriteJson(g.Map{
@@ -204,7 +195,7 @@ func Conversation(r *ghttp.Request) {
 				}()
 			}()
 
-			email = emailPop.(string)
+			email = emailPop
 		}
 		if email == "" {
 			g.Log().Error(ctx, "Get email from set error")

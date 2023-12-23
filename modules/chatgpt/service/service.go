@@ -103,11 +103,11 @@ func AddAllSession(ctx g.Ctx) {
 
 		// 添加到set
 		if isPlus == 1 {
-			config.PlusSet.AddIfNotExist(email)
+			config.PlusSet.Add(email)
 			config.NormalSet.Remove(email)
 
 		} else {
-			config.NormalSet.AddIfNotExist(email)
+			config.NormalSet.Add(email)
 			config.PlusSet.Remove(email)
 
 		}

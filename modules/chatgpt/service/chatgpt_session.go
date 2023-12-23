@@ -167,11 +167,11 @@ func (s *ChatgptSessionService) GetSessionAndUpdateStatus(ctx g.Ctx, param g.Map
 	cool.CacheManager.Set(ctx, "session:"+email, cacheSession, time.Hour*24*10)
 	// 添加到set
 	if isPlus == 1 {
-		config.PlusSet.AddIfNotExist(email)
+		config.PlusSet.Add(email)
 		config.NormalSet.Remove(email)
 
 	} else {
-		config.NormalSet.AddIfNotExist(email)
+		config.NormalSet.Add(email)
 		config.PlusSet.Remove(email)
 
 	}

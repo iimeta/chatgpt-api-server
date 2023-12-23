@@ -1,12 +1,13 @@
 package config
 
 import (
+	"chatgpt-api-server/utility"
 	"math/rand"
 	"time"
 
-	"github.com/gogf/gf/container/gset"
 	"github.com/gogf/gf/v2/container/garray"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcache"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
@@ -24,11 +25,13 @@ func USERTOKENLOCK(ctx g.Ctx) bool {
 }
 
 var (
-	DefaultModel = "text-davinci-002-render-sha"
-	FreeModels   = garray.NewStrArray()
-	PlusModels   = garray.NewStrArray()
-	NormalSet    = gset.New(true)
-	PlusSet      = gset.New(true)
+	DefaultModel     = "text-davinci-002-render-sha"
+	FreeModels       = garray.NewStrArray()
+	PlusModels       = garray.NewStrArray()
+	NormalSet        = utility.NewSafeQueue()
+	PlusSet          = utility.NewSafeQueue()
+	MAXTIME          = 0
+	TraceparentCache = gcache.New()
 )
 
 func PORT(ctx g.Ctx) int {
@@ -94,4 +97,14 @@ func init() {
 	PlusModels.Append("gpt-4-code-interpreter")
 	PlusModels.Append("gpt-4-gizmo")
 
+}
+func GenerateID(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	// rand.Seed(time.Now().UnixNano())
+
+	id := "chatcmpl-"
+	for i := 0; i < length; i++ {
+		id += string(charset[rand.Intn(len(charset))])
+	}
+	return id
 }

@@ -76,8 +76,8 @@ func ProxyAll(r *ghttp.Request) {
 	accessToken := ""
 	email := TraceparentCache.MustGet(ctx, Traceparent).String()
 	if email == "" {
-		emailPop := config.PlusSet.Pop()
-		if emailPop == nil {
+		emailPop, ok := config.PlusSet.Pop()
+		if !ok {
 			g.Log().Error(ctx, "emailPop is nil")
 			r.Response.Status = 500
 			r.Response.WriteJson(g.Map{
@@ -86,9 +86,9 @@ func ProxyAll(r *ghttp.Request) {
 			return
 		}
 		defer func() {
-			config.PlusSet.Add(emailPop)
+			config.PlusSet.Add(email)
 		}()
-		email = emailPop.(string)
+		email = emailPop
 		var sessionPair *config.CacheSession
 		err := cool.CacheManager.MustGet(ctx, "session:"+email).Scan(sessionPair)
 		if err != nil {
@@ -111,6 +111,7 @@ func ProxyAll(r *ghttp.Request) {
 
 		TraceparentCache.Set(ctx, Traceparent, sessionPair.AccessToken, time.Minute)
 	}
+	g.Log().Debug(ctx, "email", email)
 
 	UpStream := config.CHATPROXY(ctx)
 	u, _ := url.Parse(UpStream)

@@ -13,12 +13,17 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gogf/gf v1.16.9
 	github.com/gogf/gf/v2 v2.6.1
+	github.com/json-iterator/go v1.1.12
+	github.com/pkoukk/tiktoken-go v0.1.6
 )
 
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/clbanning/mxj v1.8.5-0.20200714211355-ff02cfb8ea28 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/dlclark/regexp2 v1.10.0 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/redis/go-redis/v9 v9.3.1 // indirect
 	go.opentelemetry.io/otel/metric v1.21.0 // indirect
 )
@@ -37,7 +42,7 @@ require (
 	github.com/gogf/gf/contrib/drivers/mysql/v2 v2.6.1 // indirect
 	github.com/gogf/gf/contrib/nosql/redis/v2 v2.6.1
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
-	github.com/google/uuid v1.5.0 // indirect
+	github.com/google/uuid v1.5.0
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/grokify/html-strip-tags-go v0.1.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
