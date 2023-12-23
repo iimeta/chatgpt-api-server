@@ -26,8 +26,13 @@
 		<!-- 新增、编辑 -->
 		<cl-upsert ref="Upsert" />
 	</cl-crud>
-	<f-k-arkos :public-key="publicKey" mode="lightbox" arkosUrl="https://tcr9i.xyhelper.cn"
-		@onCompleted="onCompleted($event)" @onError="onError($event)" />
+	<f-k-arkos
+		:public-key="publicKey"
+		mode="lightbox"
+		arkosUrl="https://tcr9i.xyhelper.cn"
+		@onCompleted="onCompleted($event)"
+		@onError="onError($event)"
+	/>
 </template>
 
 <script lang="ts" name="chatgpt-session" setup>
