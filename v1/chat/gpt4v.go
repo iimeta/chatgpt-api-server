@@ -288,6 +288,7 @@ func Gpt4v(r *ghttp.Request) {
 	}
 	if stream {
 		// 流式返回
+		modelSlug := ""
 		rw := r.Response.RawWriter()
 		flusher, ok := rw.(http.Flusher)
 		if !ok {
@@ -329,6 +330,10 @@ func Gpt4v(r *ghttp.Request) {
 			role := gjson.New(text).Get("message.author.role").String()
 			if role == "assistant" {
 				messageTemp := gjson.New(text).Get("message.content.parts.0").String()
+				model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
+				if model_slug != "" {
+					modelSlug = model_slug
+				}
 				//
 				content := strings.Replace(messageTemp, message, "", 1)
 				if content == "" {
@@ -358,8 +363,14 @@ func Gpt4v(r *ghttp.Request) {
 			}
 
 		}
+		if modelSlug == "text-davinci-002-render-sha" {
+			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "PLUS失效")
+		} else {
+			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "完成会话")
+		}
 	} else {
 		// 非流式回应
+		modelSlug := ""
 		content := ""
 		decoder := eventsource.NewDecoder(resp.Body)
 		for {
@@ -380,10 +391,15 @@ func Gpt4v(r *ghttp.Request) {
 			// gjson.New(text).Dump()
 			role := gjson.New(text).Get("message.author.role").String()
 			if role == "assistant" {
+				model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
+				if model_slug != "" {
+					modelSlug = model_slug
+				}
 				message := gjson.New(text).Get("message.content.parts.0").String()
 				if message != "" {
 					content = message
 				}
+
 			}
 		}
 		decoder.Decode()
@@ -402,6 +418,11 @@ func Gpt4v(r *ghttp.Request) {
 		apiResp.Set("usage.completion_tokens", completionTokens)
 		apiResp.Set("usage.total_tokens", totalTokens)
 		r.Response.WriteJson(apiResp)
+		if modelSlug == "text-davinci-002-render-sha" {
+			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "PLUS失效")
+		} else {
+			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "完成会话")
+		}
 	}
 
 }
