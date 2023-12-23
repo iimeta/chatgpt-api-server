@@ -359,7 +359,6 @@ func Completions(r *ghttp.Request) {
 			}()
 		}()
 		if email == "" {
-			g.Log().Info(ctx, config.PlusSet.Size())
 			emailPop, ok := config.PlusSet.Pop()
 			g.Log().Info(ctx, emailPop, ok)
 			if !ok {
@@ -374,7 +373,6 @@ func Completions(r *ghttp.Request) {
 			email = emailPop
 		}
 	} else {
-		g.Log().Info(ctx, config.NormalSet.Size())
 		emailPop, ok := config.NormalSet.Pop()
 		if !ok {
 			g.Log().Error(ctx, "Get email from set error")

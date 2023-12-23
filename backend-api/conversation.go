@@ -129,7 +129,6 @@ func Conversation(r *ghttp.Request) {
 		// 如果不带conversation_id，说明是新会话，需要获取email	并获取accessToken
 
 		if isPlusModel {
-			email := ""
 			Traceparent := r.Header.Get("Traceparent")
 			// Traceparent like 00-d8c66cc094b38d1796381c255542f971-09988d8458a2352c-01 获取第二个参数
 			// 以-分割，取第二个参数
@@ -163,7 +162,6 @@ func Conversation(r *ghttp.Request) {
 				}()
 			}()
 			if email == "" {
-				g.Log().Info(ctx, config.PlusSet.Size())
 				emailPop, ok := config.PlusSet.Pop()
 				if !ok {
 					g.Log().Error(ctx, "Get email from set error")
@@ -177,7 +175,6 @@ func Conversation(r *ghttp.Request) {
 				email = emailPop
 			}
 		} else {
-			g.Log().Info(ctx, config.NormalSet.Size())
 			emailPop, ok := config.NormalSet.Pop()
 			if !ok {
 				g.Log().Error(ctx, "Get email from set error")
@@ -352,8 +349,9 @@ func Conversation(r *ghttp.Request) {
 		g.Log().Debug(ctx, "messageId", messageId)
 		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
 			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "PLUS失效")
+		} else {
+			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "完成会话")
 		}
-
 		// g.Log().Debug(ctx, "messagBody", messagBody)
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
 		count := 0
@@ -477,7 +475,7 @@ func RefreshSession(email string) {
 	}
 	g.Log().Info(ctx, "RefreshSession", result["email"], "start")
 	// time.Sleep(5 * time.Minute)
-	getSessionUrl := config.CHATPROXY(ctx) + "/getsession"
+	getSessionUrl := config.CHATPROXY(ctx) + "/applelogin"
 	var sessionJson *gjson.Json
 	refreshToken := gjson.New(result["officialSession"]).Get("refresh_token").String()
 	sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
@@ -487,17 +485,54 @@ func RefreshSession(email string) {
 		"authkey":       config.AUTHKEY(ctx),
 	})
 	sessionJson = gjson.New(sessionVar)
+	detail := sessionJson.Get("detail").String()
+	if detail == "密码不正确" || gstr.Contains(detail, "account_deactivated") {
+		g.Log().Error(ctx, "AddAllSession", email, detail)
+		cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+			"officialSession": sessionJson.String(),
+			"status":          0,
+		})
+		return
+	}
 	if sessionJson.Get("accessToken").String() == "" {
 		g.Log().Error(ctx, "RefreshSession", result["email"], "get session error", sessionJson)
 		return
 	}
+	var isPlus int
+	models := sessionJson.Get("models").Array()
+	if len(models) > 1 {
+		isPlus = 1
+	} else {
+		isPlus = 0
+	}
 	_, err = cool.DBM(m).Where("email=?", result["email"]).Update(g.Map{
 		"officialSession": sessionJson.String(),
 		"status":          1,
+		"isPlus":          isPlus,
 	})
 	if err != nil {
 		g.Log().Error(ctx, "RefreshSession", err)
 		return
 	}
+	// 更新缓存
+	cacheSession := &config.CacheSession{
+		Email:        email,
+		AccessToken:  sessionJson.Get("accessToken").String(),
+		IsPlus:       isPlus,
+		CooldownTime: 0,
+	}
+	cool.CacheManager.Set(ctx, "session:"+email, cacheSession, time.Hour*24*10)
+
+	// 更新set
+	if isPlus == 1 {
+		config.PlusSet.Add(email)
+		config.NormalSet.Remove(email)
+
+	} else {
+		config.NormalSet.Add(email)
+		config.PlusSet.Remove(email)
+
+	}
+	g.Log().Info(ctx, "RefreshSession", result["email"], isPlus, "success")
 
 }

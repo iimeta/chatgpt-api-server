@@ -24,7 +24,7 @@ DATA='{
         }
     ],
     "parent_message_id": "1d46d519-c4a5-4676-a62f-a531dc1e81dd",
-    "model": "text-davinci-002-render-sha",
+    "model": "gpt-4",
     "timezone_offset_min": -480
 }'
 
