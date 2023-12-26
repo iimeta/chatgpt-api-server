@@ -70,7 +70,7 @@ func AddAllSession(ctx g.Ctx) {
 			if accessToken == "" {
 				g.Log().Error(ctx, "AddAllSession", email, "get session error", sessionJson)
 				detail := sessionJson.Get("detail").String()
-				if detail == "密码不正确" || gstr.Contains(detail, "account_deactivated") {
+				if detail == "密码不正确" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "403 Forbidden|Unknown or invalid refresh token.") {
 					g.Log().Error(ctx, "AddAllSession", email, detail)
 					cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
 						"officialSession": sessionJson.String(),

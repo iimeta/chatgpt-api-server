@@ -56,16 +56,9 @@ var (
 		"parent_message_id": "aaa1a8ab-61d6-4fc0-a5f5-181015c2ebaf",
 		"model": "text-davinci-002-render-sha",
 		"timezone_offset_min": -480,
-		"suggestions": [
-		  "Brainstorm 5 episode ideas for my new podcast on urban design.",
-		  "Come up with 5 concepts for a retro-style arcade game.",
-		  "What are 5 creative things I could do with my kids' art? I don't want to throw them away, but it's also so much clutter.",
-		  "Show me a code snippet of a website's sticky header in CSS and JavaScript."
-		],
+		"suggestions": [],
 		"history_and_training_disabled": true,
-		"conversation_mode": { "kind": "primary_assistant" },
-		"force_paragen": false,
-		"force_rate_limit": false
+		"conversation_mode": { "kind": "primary_assistant" }
 	  }
 	  `
 	ChatTurboReqStr = `
@@ -89,18 +82,11 @@ var (
 		"parent_message_id": "aaa1403d-c61e-4818-90e0-93a99465aec6",
 		"model": "gpt-4",
 		"timezone_offset_min": -480,
-		"suggestions": [
-			"Design a database schema for an online merch store.",
-			"Can you come up with some names for a mocktail (non-alcoholic cocktail) with Coke and pomegranate syrup?",
-			"I'm going to cook for my date who claims to be a picky eater. Can you recommend me a dish that's easy to cook?",
-			"Make a content strategy for a newsletter featuring free local weekend events."
-		],
+		"suggestions": [],
 		"history_and_training_disabled": true,
 		"conversation_mode": {
 			"kind": "primary_assistant"
-		},
-		"force_paragen": false,
-		"force_rate_limit": false
+		}
 	}`
 	Chat4ReqStr = `
 	{
@@ -310,6 +296,11 @@ func Completions(r *ghttp.Request) {
 
 	if gstr.HasPrefix(req.Model, "gpt-4-turbo") {
 		ChatReq = gjson.New(ChatTurboReqStr)
+	}
+
+	if req.Model == "gpt-4-mobile" {
+		ChatReq = gjson.New(ChatReqStr)
+		ChatReq.Set("model", "gpt-4-mobile")
 	}
 
 	// 如果不是plus用户但是使用了plus模型

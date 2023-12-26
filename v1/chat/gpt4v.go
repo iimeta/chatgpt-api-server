@@ -32,6 +32,13 @@ import (
 
 func Gpt4v(r *ghttp.Request) {
 	ctx := r.Context()
+	// model := "gpt-4"
+	reqModel := "gpt-4"
+	path := r.URL.Path
+	if path == "/v1/chat/gpt4v-mobile" {
+		reqModel = "gpt-4-mobile"
+	}
+
 	// 获取 Header 中的 Authorization	去除 Bearer
 	userToken := strings.TrimPrefix(r.Header.Get("authorization"), "Bearer ")
 	// 如果 Authorization 为空，返回 401
@@ -127,7 +134,7 @@ func Gpt4v(r *ghttp.Request) {
 		})
 		return
 	}
-	g.Log().Info(ctx, userToken, "使用", email, "发起4V会话")
+	g.Log().Info(ctx, userToken, "使用", email, reqModel, "发起4V会话")
 	// 使用email获取 accessToken
 	var sessionCache *config.CacheSession
 	cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
@@ -210,14 +217,14 @@ func Gpt4v(r *ghttp.Request) {
 			return
 		}
 
-		if err != nil {
-			g.Log().Error(ctx, err)
-			r.Response.Status = 400
-			r.Response.WriteJsonExit(g.Map{
-				"code":   0,
-				"detail": err.Error(),
-			})
-		}
+		// if err != nil {
+		// 	g.Log().Error(ctx, err)
+		// 	r.Response.Status = 400
+		// 	r.Response.WriteJsonExit(g.Map{
+		// 		"code":   0,
+		// 		"detail": err.Error(),
+		// 	})
+		// }
 		file_ids = append(file_ids, file_id)
 		download_urls = append(download_urls, download_url)
 		widths = append(widths, width)
@@ -238,7 +245,7 @@ func Gpt4v(r *ghttp.Request) {
 	ChatReq.Set("messages.0.content.parts."+gconv.String(len(file_ids)), message)
 	ChatReq.Set("messages.0.id", uuid.NewString())
 	ChatReq.Set("parent_message_id", uuid.NewString())
-	ChatReq.Set("model", "gpt-4")
+	ChatReq.Set("model", reqModel)
 	// ChatReq.Remove("plugin_ids")
 
 	// ChatReq.Dump()
@@ -364,9 +371,9 @@ func Gpt4v(r *ghttp.Request) {
 
 		}
 		if modelSlug == "text-davinci-002-render-sha" {
-			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "PLUS失效")
+			g.Log().Info(ctx, userToken, "使用", email, reqModel, modelSlug, "PLUS失效")
 		} else {
-			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "完成会话")
+			g.Log().Info(ctx, userToken, "使用", email, reqModel, modelSlug, "完成会话")
 		}
 	} else {
 		// 非流式回应
