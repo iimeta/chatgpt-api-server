@@ -35,6 +35,7 @@ func AddAllSession(ctx g.Ctx) {
 		email := v["email"].String()
 		password := v["password"].String()
 		isPlus := v["isPlus"].Int()
+		status := v["status"].Int()
 		officialSession := gjson.New(v["officialSession"])
 		accessToken := officialSession.Get("accessToken").String()
 		refreshToken := officialSession.Get("refresh_token").String()
@@ -47,7 +48,7 @@ func AddAllSession(ctx g.Ctx) {
 		}
 		// 检测accessToken 是否过期,如果过期，就刷新
 		err := utility.CheckAccessToken(accessToken)
-		if err != nil {
+		if err != nil || status == 0 {
 			g.Log().Error(ctx, "AddAllSession", email, err)
 			if detail == "密码不正确" {
 				g.Log().Error(ctx, "AddAllSession", email, detail)
@@ -85,12 +86,15 @@ func AddAllSession(ctx g.Ctx) {
 			} else {
 				isPlus = 0
 			}
-
+			status = 1
 			cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
 				"officialSession": sessionJson.String(),
 				"isPlus":          isPlus,
-				"status":          1,
+				"status":          status,
 			})
+		}
+		if status == 0 {
+			continue
 		}
 
 		// 添加到缓存

@@ -406,7 +406,6 @@ func Completions(r *ghttp.Request) {
 		g.Log().Error(ctx, err)
 		isReturn = false
 		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
-		isReturn = false
 
 		go backendapi.RefreshSession(email)
 		r.Response.Status = 401
