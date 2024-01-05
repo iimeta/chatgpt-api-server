@@ -26,7 +26,7 @@ func init() {
 
 // 启动时添加所有账号的session到缓存及set
 func AddAllSession(ctx g.Ctx) {
-	record, err := cool.DBM(model.NewChatgptSession()).All()
+	record, err := cool.DBM(model.NewChatgptSession()).OrderAsc("updateTime").All()
 	if err != nil {
 		g.Log().Error(ctx, "AddAllSession", err)
 		return
@@ -51,14 +51,10 @@ func AddAllSession(ctx g.Ctx) {
 		if err != nil || status == 0 {
 			g.Log().Error(ctx, "AddAllSession", email, err)
 			if detail == "密码不正确!" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "403 Forbidden|Unknown or invalid refresh token.") {
-				g.Log().Error(ctx, "AddAllSession", email, detail)
+				g.Log().Error(ctx, "AddAllSession", "账号异常,跳过刷新", email, detail)
 				continue
 			}
-			// 如果detail 包含 account_deactivated 则不刷新
-			if gstr.Contains(detail, "account_deactivated") {
-				g.Log().Error(ctx, "AddAllSession", email, detail)
-				continue
-			}
+
 			getSessionUrl := config.CHATPROXY(ctx) + "/applelogin"
 			sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
 				"username":      email,
