@@ -371,6 +371,8 @@ func Gpt4v(r *ghttp.Request) {
 
 		}
 		if modelSlug == "text-davinci-002-render-sha" {
+			isPlusInvalid = true
+
 			g.Log().Info(ctx, userToken, "使用", email, reqModel, modelSlug, "PLUS失效")
 		} else {
 			g.Log().Info(ctx, userToken, "使用", email, reqModel, modelSlug, "完成会话")
@@ -426,6 +428,8 @@ func Gpt4v(r *ghttp.Request) {
 		apiResp.Set("usage.total_tokens", totalTokens)
 		r.Response.WriteJson(apiResp)
 		if modelSlug == "text-davinci-002-render-sha" {
+			isPlusInvalid = true
+
 			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "PLUS失效")
 		} else {
 			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "完成会话")
