@@ -29,7 +29,7 @@
 	<f-k-arkos
 		:public-key="publicKey"
 		mode="lightbox"
-		arkosUrl="https://tcr9i.xyhelper.cn"
+		arkosUrl="https://tcr9i-login.closeai.biz"
 		@onCompleted="onCompleted($event)"
 		@onError="onError($event)"
 	/>
