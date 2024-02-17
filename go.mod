@@ -3,13 +3,13 @@ module chatgpt-api-server
 go 1.18
 
 require (
-	github.com/cool-team-official/cool-admin-go/contrib/drivers/mysql v1.5.8
-	github.com/cool-team-official/cool-admin-go/contrib/drivers/sqlite v1.5.8
-	github.com/cool-team-official/cool-admin-go/cool v1.5.8
-	github.com/cool-team-official/cool-admin-go/modules/base v1.5.8
-	github.com/cool-team-official/cool-admin-go/modules/dict v1.5.8
-	github.com/cool-team-official/cool-admin-go/modules/space v1.5.8
-	github.com/cool-team-official/cool-admin-go/modules/task v1.5.8
+	github.com/cool-team-official/cool-admin-go/contrib/drivers/mysql v1.5.9
+	github.com/cool-team-official/cool-admin-go/contrib/drivers/sqlite v1.5.9
+	github.com/cool-team-official/cool-admin-go/cool v1.5.9
+	github.com/cool-team-official/cool-admin-go/modules/base v1.5.9
+	github.com/cool-team-official/cool-admin-go/modules/dict v1.5.9
+	github.com/cool-team-official/cool-admin-go/modules/space v1.5.9
+	github.com/cool-team-official/cool-admin-go/modules/task v1.5.9
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gogf/gf/v2 v2.6.3
 	github.com/json-iterator/go v1.1.12
@@ -67,5 +67,5 @@ require (
 	modernc.org/libc v1.41.0 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.7.2 // indirect
-	modernc.org/sqlite v1.28.0 // indirect
+	modernc.org/sqlite v1.29.1 // indirect
 )
