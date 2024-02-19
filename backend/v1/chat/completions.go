@@ -437,7 +437,7 @@ func Completions(r *ghttp.Request) {
 		return
 	}
 	defer resp.Close()
-	if resp.StatusCode == 401 {
+	if resp.StatusCode == 401 || resp.StatusCode == 402 {
 		g.Log().Error(ctx, "token过期,需要重新获取token", email, resp.ReadAllString())
 		isReturn = false
 		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
@@ -590,7 +590,7 @@ func Completions(r *ghttp.Request) {
 				resp.Close()
 				break
 			}
-			// gjson.New(text).Dump()
+
 			role := gjson.New(text).Get("message.author.role").String()
 			if role == "assistant" {
 				model_slug := gjson.New(text).Get("message.metadata.model_slug").String()

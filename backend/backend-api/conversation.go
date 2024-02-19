@@ -151,7 +151,7 @@ func Conversation(r *ghttp.Request) {
 								"isPlus": 0,
 							})
 							// 从set中删除
-							config.PlusSet.Remove(email)
+							config.PlusSet.Remove(emailWithTeamId)
 							// 添加到set
 							config.NormalSet.Add(email)
 							return
@@ -160,7 +160,7 @@ func Conversation(r *ghttp.Request) {
 							// 延迟归还
 							time.Sleep(time.Duration(clears_in) * time.Second)
 						}
-						config.PlusSet.Add(email)
+						config.PlusSet.Add(emailWithTeamId)
 					}
 				}()
 			}()
@@ -213,7 +213,7 @@ func Conversation(r *ghttp.Request) {
 		}
 		// 使用email获取 accessToken
 		var sessionCache *config.CacheSession
-		cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
+		cool.CacheManager.MustGet(ctx, "session:"+emailWithTeamId).Scan(&sessionCache)
 		accessToken := sessionCache.AccessToken
 		err = utility.CheckAccessToken(accessToken)
 		if err != nil { // accessToken失效
