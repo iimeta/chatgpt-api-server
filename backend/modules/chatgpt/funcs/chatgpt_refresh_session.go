@@ -1,7 +1,6 @@
 package funcs
 
 import (
-	"github.com/cool-team-official/cool-admin-go/cool"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -30,6 +29,6 @@ func (f *ChatgptRefreshSession) IsAllWorker() bool {
 }
 
 func init() {
-	cool.RegisterFunc("ChatgptRefreshSession", new(ChatgptRefreshSession))
-	g.Dump(cool.FuncMap)
+	// cool.RegisterFunc("ChatgptRefreshSession", new(ChatgptRefreshSession))
+	// g.Dump(cool.FuncMap)
 }

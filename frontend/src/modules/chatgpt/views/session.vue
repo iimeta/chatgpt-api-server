@@ -95,7 +95,10 @@ const Upsert = useUpsert({
 			done();
 			close();
 		} else {
-			alert("请刷新页面，重新验证");
+			ElMessage({
+				message: "请先完成人机验证.",
+				type: "error"
+			});
 			done();
 		}
 	}
@@ -135,6 +138,7 @@ const Crud = useCrud(
 </script>
 <script lang="ts">
 import FKArkos from "./FKArkos.vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { defineComponent } from "vue";
 export default defineComponent({
 	components: {
@@ -150,13 +154,32 @@ export default defineComponent({
 	methods: {
 		onCompleted(token: string) {
 			console.log("onCompleted---------->", token);
+			ElMessage({
+				message: "人机验证已完成.",
+				type: "success"
+			});
 			localStorage.setItem("arkoseToken", token);
 
 			this.arkoseToken = token;
 			// router.replace({ path: "/dashboard" });
 		},
 		onError(errorMessage: any) {
-			alert(errorMessage);
+			console.log("onError---------->", errorMessage.error.error);
+			// alert(errorMessage.error.error);
+			ElMessageBox.alert("加载人机验证失败,请刷新页面重试!", errorMessage.error.error, {
+				// if you want to disable its autofocus
+				// autofocus: false,
+				confirmButtonText: "OK"
+				// callback: (action: Action) => {
+				// 	ElMessage({
+				// 		type: "info",
+				// 		message: `action: ${action}`
+				// 	});
+				// }
+			});
+		},
+		onReady() {
+			console.log("onReady---------->");
 		},
 
 		onSubmit() {

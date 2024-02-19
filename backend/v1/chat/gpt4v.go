@@ -85,6 +85,9 @@ func Gpt4v(r *ghttp.Request) {
 	}
 	email := ""
 	clears_in := 0
+	teamId := ""
+	emailWithTeamId := ""
+	ok := false
 	// plus失效
 	isPlusInvalid := false
 	// 是否归还
@@ -98,7 +101,7 @@ func Gpt4v(r *ghttp.Request) {
 						"isPlus": 0,
 					})
 					// 从set中删除
-					config.PlusSet.Remove(email)
+					config.PlusSet.Remove(emailWithTeamId)
 					// 添加到set
 					config.NormalSet.Add(email)
 					return
@@ -108,13 +111,13 @@ func Gpt4v(r *ghttp.Request) {
 					time.Sleep(time.Duration(clears_in) * time.Second)
 				}
 
-				config.PlusSet.Add(email)
+				config.PlusSet.Add(emailWithTeamId)
 			}
 		}()
 	}()
 	if email == "" {
-		emailPop, ok := config.PlusSet.Pop()
-		g.Log().Info(ctx, emailPop, ok)
+		emailWithTeamId, ok = config.PlusSet.Pop()
+		g.Log().Info(ctx, emailWithTeamId, ok)
 		if !ok {
 			g.Log().Error(ctx, "Get email from set error")
 			r.Response.Status = 500
@@ -124,7 +127,13 @@ func Gpt4v(r *ghttp.Request) {
 			return
 		}
 
-		email = emailPop
+		if gstr.Contains(emailWithTeamId, "|") {
+			emailWithTeamIdArr := gstr.Split(emailWithTeamId, "|")
+			email = emailWithTeamIdArr[0]
+			teamId = emailWithTeamIdArr[1]
+		} else {
+			email = emailWithTeamId
+		}
 	}
 	if email == "" {
 		g.Log().Error(ctx, "Get email from set error")
@@ -134,7 +143,7 @@ func Gpt4v(r *ghttp.Request) {
 		})
 		return
 	}
-	g.Log().Info(ctx, userToken, "使用", email, reqModel, "发起4V会话")
+	g.Log().Info(ctx, userToken, "使用", emailWithTeamId, reqModel, "发起4V会话")
 	// 使用email获取 accessToken
 	var sessionCache *config.CacheSession
 	cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
@@ -205,8 +214,8 @@ func Gpt4v(r *ghttp.Request) {
 	var size_bytess []int64
 	// 上传文件到azure
 	for _, filename := range filenames {
-		file_id, download_url, width, height, size_bytes, stateCode, err := UploadAzure(ctx, "./temp/"+filename, accessToken)
-		if stateCode == 401 {
+		file_id, download_url, width, height, size_bytes, stateCode, err := UploadAzure(ctx, "./temp/"+filename, accessToken, teamId)
+		if stateCode == 401 || stateCode == 402 {
 			g.Log().Error(ctx, "token过期,需要重新获取token", email, err)
 			isReturn = false
 			cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
@@ -250,10 +259,14 @@ func Gpt4v(r *ghttp.Request) {
 
 	// ChatReq.Dump()
 	// 请求openai
-	resp, err := g.Client().SetHeaderMap(g.MapStrStr{
+	headerMap := g.MapStrStr{
 		"Authorization": "Bearer " + accessToken,
 		"Content-Type":  "application/json",
-	}).Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", ChatReq.MustToJson())
+	}
+	if teamId != "" {
+		headerMap["ChatGPT-Account-ID"] = teamId
+	}
+	resp, err := g.Client().SetHeaderMap(headerMap).Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", ChatReq.MustToJson())
 	if err != nil {
 		g.Log().Error(ctx, err)
 		r.Response.Status = 500
@@ -262,7 +275,7 @@ func Gpt4v(r *ghttp.Request) {
 	}
 	defer resp.Close()
 	// 如果返回401 说明token过期，需要重新获取token 先删除sessionPair 并将status设置为0
-	if resp.StatusCode == 401 {
+	if resp.StatusCode == 401 || resp.StatusCode == 402 {
 		g.Log().Error(ctx, "token过期,需要重新获取token", email, resp.ReadAllString())
 		isReturn = false
 		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
@@ -373,9 +386,9 @@ func Gpt4v(r *ghttp.Request) {
 		if modelSlug == "text-davinci-002-render-sha" {
 			isPlusInvalid = true
 
-			g.Log().Info(ctx, userToken, "使用", email, reqModel, modelSlug, "PLUS失效")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, reqModel, modelSlug, "PLUS失效")
 		} else {
-			g.Log().Info(ctx, userToken, "使用", email, reqModel, modelSlug, "完成会话")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, reqModel, modelSlug, "完成会话")
 		}
 	} else {
 		// 非流式回应
@@ -430,15 +443,15 @@ func Gpt4v(r *ghttp.Request) {
 		if modelSlug == "text-davinci-002-render-sha" {
 			isPlusInvalid = true
 
-			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "PLUS失效")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, modelSlug, "PLUS失效")
 		} else {
-			g.Log().Info(ctx, userToken, "使用", email, modelSlug, "完成会话")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, modelSlug, "完成会话")
 		}
 	}
 
 }
 
-func UploadAzure(ctx g.Ctx, filepath string, token string) (file_id string, download_url string, width int, height int, size_bytes int64, statusCode int, err error) {
+func UploadAzure(ctx g.Ctx, filepath string, token string, teamId string) (file_id string, download_url string, width int, height int, size_bytes int64, statusCode int, err error) {
 	// 检测文件是否存在
 	if !gfile.Exists(filepath) {
 		err = gerror.New("read file fail")
@@ -447,9 +460,14 @@ func UploadAzure(ctx g.Ctx, filepath string, token string) (file_id string, down
 
 	fileName := gfile.Basename(filepath)
 	fileSize := gfile.Size(filepath)
-
+	headerMap := g.MapStrStr{
+		"Authorization": "Bearer " + token,
+	}
+	if teamId != "" {
+		headerMap["ChatGPT-Account-ID"] = teamId
+	}
 	// 获取上传地址 backend-api/files  POST
-	res, err := g.Client().SetHeader("Authorization", "Bearer "+token).ContentJson().Post(ctx, config.CHATPROXY(ctx)+"/backend-api/files", g.Map{
+	res, err := g.Client().SetHeaderMap(headerMap).ContentJson().Post(ctx, config.CHATPROXY(ctx)+"/backend-api/files", g.Map{
 		"file_name": fileName,
 		"file_size": fileSize,
 		"use_case":  "multimodal",
@@ -505,7 +523,7 @@ func UploadAzure(ctx g.Ctx, filepath string, token string) (file_id string, down
 		return
 	}
 	// 获取文件下载地址 backend-api/files/{file_id}/uploaded  POST
-	resdown, err := g.Client().SetHeader("Authorization", "Bearer "+token).ContentJson().Post(ctx, config.CHATPROXY(ctx)+"/backend-api/files/"+file_id+"/uploaded")
+	resdown, err := g.Client().SetHeaderMap(headerMap).ContentJson().Post(ctx, config.CHATPROXY(ctx)+"/backend-api/files/"+file_id+"/uploaded")
 	if err != nil {
 		return
 	}
