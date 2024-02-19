@@ -99,6 +99,8 @@ func Conversation(r *ghttp.Request) {
 		return
 	}
 	email := ""
+	teamId := ""
+	emailWithTeamId := ""
 	clears_in := 0
 	// plus失效
 	isPlusInvalid := false
@@ -108,13 +110,21 @@ func Conversation(r *ghttp.Request) {
 	// 如果带有conversation_id，说明是继续会话，需要获取email	并获取accessToken
 	conversation_id := reqJson.Get("conversation_id").String()
 	if conversation_id != "" {
-		email = cool.CacheManager.MustGet(ctx, "conversation:"+conversation_id).String()
-		if email == "" {
+		emailWithTeamId = cool.CacheManager.MustGet(ctx, "conversation:"+conversation_id).String()
+		if emailWithTeamId == "" {
 			r.Response.Status = 404
 			r.Response.WriteJson(g.Map{
 				"detail": "conversation_id not found",
 			})
 			return
+		}
+		// 如果emailWithTeamId 包含 | 说明是团队模式 使用|分割为 email 和 teamId
+		if gstr.Contains(emailWithTeamId, "|") {
+			emailWithTeamIdArr := gstr.Split(emailWithTeamId, "|")
+			email = emailWithTeamIdArr[0]
+			teamId = emailWithTeamIdArr[1]
+		} else {
+			email = emailWithTeamId
 		}
 		// 使用email获取 accessToken
 		var sessionCache *config.CacheSession
@@ -132,16 +142,6 @@ func Conversation(r *ghttp.Request) {
 		// 如果不带conversation_id，说明是新会话，需要获取email	并获取accessToken
 
 		if isPlusModel {
-			Traceparent := r.Header.Get("Traceparent")
-			// Traceparent like 00-d8c66cc094b38d1796381c255542f971-09988d8458a2352c-01 获取第二个参数
-			// 以-分割，取第二个参数
-			TraceparentArr := gstr.Split(Traceparent, "-")
-			if len(TraceparentArr) >= 2 {
-				// 获取第二个参数
-				Traceparent = TraceparentArr[1]
-				g.Log().Info(ctx, "Traceparent", Traceparent)
-				email = config.TraceparentCache.MustGet(ctx, Traceparent).String()
-			}
 			defer func() {
 				go func() {
 					if email != "" && isReturn {
@@ -165,7 +165,7 @@ func Conversation(r *ghttp.Request) {
 				}()
 			}()
 			if email == "" {
-				emailPop, ok := config.PlusSet.Pop()
+				emailWithTeamId, ok := config.PlusSet.Pop()
 				if !ok {
 					g.Log().Error(ctx, "Get email from set error")
 					r.Response.Status = 500
@@ -174,8 +174,14 @@ func Conversation(r *ghttp.Request) {
 					})
 					return
 				}
-
-				email = emailPop
+				// 如果emailWithTeamId 包含 | 说明是团队模式 使用|分割为 email 和 teamId
+				if gstr.Contains(emailWithTeamId, "|") {
+					emailWithTeamIdArr := gstr.Split(emailWithTeamId, "|")
+					email = emailWithTeamIdArr[0]
+					teamId = emailWithTeamIdArr[1]
+				} else {
+					email = emailWithTeamId
+				}
 			}
 		} else {
 			emailPop, ok := config.NormalSet.Pop()
@@ -226,8 +232,11 @@ func Conversation(r *ghttp.Request) {
 
 	client.SetHeader("Content-Type", "application/json")
 	client.SetHeader("authkey", config.AUTHKEY(ctx))
+	if teamId != "" {
+		client.SetHeader("ChatGPT-Account-ID", teamId)
+	}
 	realModel := reqJson.Get("model").String()
-	g.Log().Info(ctx, userToken, "使用", email, realModel, "->", realModel, "发起会话")
+	g.Log().Info(ctx, userToken, "使用", email+"|"+teamId, realModel, "->", realModel, "发起会话")
 
 	resp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", reqJson)
 	if err != nil {
@@ -354,9 +363,9 @@ func Conversation(r *ghttp.Request) {
 		g.Log().Debug(ctx, "modelSlug", modelSlug)
 		g.Log().Debug(ctx, "messageId", messageId)
 		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
-			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "PLUS失效")
+			g.Log().Info(ctx, userToken, "使用", email+"|"+teamId, realModel, "->", modelSlug, "PLUS失效")
 		} else {
-			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "完成会话")
+			g.Log().Info(ctx, userToken, "使用", email+"|"+teamId, realModel, "->", modelSlug, "完成会话")
 		}
 		// g.Log().Debug(ctx, "messagBody", messagBody)
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
@@ -533,11 +542,15 @@ func RefreshSession(email string) {
 	if isPlus == 1 {
 		config.PlusSet.Add(email)
 		config.NormalSet.Remove(email)
-
 	} else {
 		config.NormalSet.Add(email)
 		config.PlusSet.Remove(email)
+	}
+	accounts_info := sessionJson.Get("accounts_info").String()
 
+	teamIds := utility.GetTeamIdByAccountInfo(ctx, accounts_info)
+	for _, v := range teamIds {
+		config.PlusSet.Add(email + "|" + v)
 	}
 	g.Log().Info(ctx, "RefreshSession", result["email"], isPlus, "success")
 

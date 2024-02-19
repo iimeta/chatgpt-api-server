@@ -1,7 +1,6 @@
 package service
 
 import (
-	"chatgpt-api-server/config"
 	"chatgpt-api-server/modules/chatgpt/model"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
@@ -46,67 +45,67 @@ func NewChatgptUserService() *ChatgptUserService {
 	}
 }
 
-// GetSessionPair 获取session pair
-func (s *ChatgptUserService) GetSessionPair(ctx g.Ctx, userToken string, conversationId string, isPlusModel bool) (sessionPair *SessionPair, code int, err error) {
+// // GetSessionPair 获取session pair
+// func (s *ChatgptUserService) GetSessionPair(ctx g.Ctx, userToken string, conversationId string, isPlusModel bool) (sessionPair *SessionPair, code int, err error) {
 
-	record, err := cool.DBM(s.Model).Where("userToken", userToken).Where("expireTime>now()").One()
-	if err != nil {
-		code = 500
-		return nil, code, err
-	}
-	// 如果用户不存在或者过期 且不是免费模式
-	if record.IsEmpty() && !config.ISFREE(ctx) {
-		code = 401
-		err = gerror.New("userToken is not exist or exprieTime is out")
-		return nil, code, err
-	}
-	// 检查用户是否有权限
-	if isPlusModel {
-		if record.IsEmpty() {
-			code = 501
-			err = gerror.New("不是plus用户")
-			return nil, code, err
-		} else {
-			if record["isPlus"].Int() != 1 {
-				isPlusModel = false
-				code = 501
-				err = gerror.New("不是plus用户")
-				return nil, code, err
-			}
-		}
-	}
+// 	record, err := cool.DBM(s.Model).Where("userToken", userToken).Where("expireTime>now()").One()
+// 	if err != nil {
+// 		code = 500
+// 		return nil, code, err
+// 	}
+// 	// 如果用户不存在或者过期 且不是免费模式
+// 	if record.IsEmpty() && !config.ISFREE(ctx) {
+// 		code = 401
+// 		err = gerror.New("userToken is not exist or exprieTime is out")
+// 		return nil, code, err
+// 	}
+// 	// 检查用户是否有权限
+// 	if isPlusModel {
+// 		if record.IsEmpty() {
+// 			code = 501
+// 			err = gerror.New("不是plus用户")
+// 			return nil, code, err
+// 		} else {
+// 			if record["isPlus"].Int() != 1 {
+// 				isPlusModel = false
+// 				code = 501
+// 				err = gerror.New("不是plus用户")
+// 				return nil, code, err
+// 			}
+// 		}
+// 	}
 
-	sessionRecord, code, err := NewChatgptSessionService().GetSessionByUserToken(ctx, userToken, conversationId, isPlusModel)
-	if err != nil {
-		g.Log().Error(ctx, "NewChatgptSessionService().GetSessionByUserToken", code, err)
+// 	sessionRecord, code, err := NewChatgptSessionService().GetSessionByUserToken(ctx, userToken, conversationId, isPlusModel)
+// 	if err != nil {
+// 		g.Log().Error(ctx, "NewChatgptSessionService().GetSessionByUserToken", code, err)
 
-		return
-	}
-	// g.Dump(sessionRecord)
-	// if sessionRecord.IsEmpty() {
-	// 	code = 404
-	// 	err = gerror.New("session is not exist")
-	// 	return
-	// }
-	email := sessionRecord["email"].String()
+// 		return
+// 	}
+// 	// g.Dump(sessionRecord)
+// 	// if sessionRecord.IsEmpty() {
+// 	// 	code = 404
+// 	// 	err = gerror.New("session is not exist")
+// 	// 	return
+// 	// }
+// 	email := sessionRecord["email"].String()
 
-	sessionPair = &SessionPair{
-		Email:          email,
-		Session:        sessionRecord["officialSession"].String(),
-		AccessToken:    getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String()),
-		OfficalSession: sessionRecord["officialSession"].String(),
-	}
-	g.Log().Debug(ctx, "sessionPair", sessionPair)
-	if sessionPair.AccessToken == "" {
-		code = 404
-		g.Log().Error(ctx, "get accessToken error", email, sessionRecord["officialSession"].String())
-		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
-		err = gerror.New("get accessToken error")
-		return
-	}
+// 	sessionPair = &SessionPair{
+// 		Email:          email,
+// 		Session:        sessionRecord["officialSession"].String(),
+// 		AccessToken:    getAccessTokenFromSession(ctx, sessionRecord["officialSession"].String()),
+// 		OfficalSession: sessionRecord["officialSession"].String(),
+// 	}
+// 	g.Log().Debug(ctx, "sessionPair", sessionPair)
+// 	if sessionPair.AccessToken == "" {
+// 		code = 404
+// 		g.Log().Error(ctx, "get accessToken error", email, sessionRecord["officialSession"].String())
+// 		cool.DBM(model.NewChatgptSession()).Where("email", sessionPair.Email).Update(g.Map{"status": 0})
+// 		err = gerror.New("get accessToken error")
+// 		return
+// 	}
 
-	return
-}
+// 	return
+// }
 
 // getaccessTokenFromSession 从session中获取authorization
 func getAccessTokenFromSession(ctx g.Ctx, session string) (accessToken string) {

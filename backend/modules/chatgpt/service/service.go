@@ -118,6 +118,12 @@ func AddAllSession(ctx g.Ctx) {
 			config.PlusSet.Remove(email)
 
 		}
+		accounts_info := officialSession.Get("accounts_info").String()
+
+		teamIds := utility.GetTeamIdByAccountInfo(ctx, accounts_info)
+		for _, v := range teamIds {
+			config.PlusSet.Add(email + "|" + v)
+		}
 	}
 
 	g.Log().Info(ctx, "AddSession finish", "plusSet", config.PlusSet.Size(), "normalSet", config.NormalSet.Size())

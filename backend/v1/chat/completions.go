@@ -258,7 +258,7 @@ func Completions(r *ghttp.Request) {
 			return
 		}
 		if userRecord.IsEmpty() {
-			g.Log().Error(ctx, "userToken not found")
+			g.Log().Error(ctx, "userToken not found:", userToken)
 			r.Response.Status = 401
 			r.Response.WriteJson(g.Map{
 				"detail": "userToken not found",
@@ -312,24 +312,16 @@ func Completions(r *ghttp.Request) {
 		return
 	}
 	email := ""
+	teamId := ""
+	emailWithTeamId := ""
 	clears_in := 0
+	ok := false
 	// plus失效
 	isPlusInvalid := false
 	// 是否归还
 	isReturn := true
 	isPlusModel := gstr.HasPrefix(req.Model, "gpt-4")
 	if isPlusModel {
-		Traceparent := r.Header.Get("Traceparent")
-		// Traceparent like 00-d8c66cc094b38d1796381c255542f971-09988d8458a2352c-01 获取第二个参数
-		// 以-分割，取第二个参数
-		TraceparentArr := gstr.Split(Traceparent, "-")
-		if len(TraceparentArr) >= 2 {
-			// 获取第二个参数
-			Traceparent = TraceparentArr[1]
-			g.Log().Info(ctx, "Traceparent", Traceparent)
-			email = config.TraceparentCache.MustGet(ctx, Traceparent).String()
-		}
-
 		defer func() {
 			go func() {
 				if email != "" && isReturn {
@@ -339,7 +331,7 @@ func Completions(r *ghttp.Request) {
 							"isPlus": 0,
 						})
 						// 从set中删除
-						config.PlusSet.Remove(email)
+						config.PlusSet.Remove(emailWithTeamId)
 						// 添加到set
 						config.NormalSet.Add(email)
 						return
@@ -348,13 +340,13 @@ func Completions(r *ghttp.Request) {
 						// 延迟归还
 						time.Sleep(time.Duration(clears_in) * time.Second)
 					}
-					config.PlusSet.Add(email)
+					config.PlusSet.Add(emailWithTeamId)
 				}
 			}()
 		}()
 		if email == "" {
-			emailPop, ok := config.PlusSet.Pop()
-			g.Log().Info(ctx, emailPop, ok)
+			emailWithTeamId, ok = config.PlusSet.Pop()
+			g.Log().Info(ctx, emailWithTeamId, ok)
 			if !ok {
 				g.Log().Error(ctx, "Get email from set error")
 				r.Response.Status = 500
@@ -363,11 +355,16 @@ func Completions(r *ghttp.Request) {
 				})
 				return
 			}
-
-			email = emailPop
+			if gstr.Contains(emailWithTeamId, "|") {
+				emailWithTeamIdArr := gstr.Split(emailWithTeamId, "|")
+				email = emailWithTeamIdArr[0]
+				teamId = emailWithTeamIdArr[1]
+			} else {
+				email = emailWithTeamId
+			}
 		}
 	} else {
-		emailPop, ok := config.NormalSet.Pop()
+		emailWithTeamId, ok = config.NormalSet.Pop()
 		if !ok {
 			g.Log().Error(ctx, "Get email from set error")
 			r.Response.Status = 500
@@ -384,7 +381,7 @@ func Completions(r *ghttp.Request) {
 			}()
 		}()
 
-		email = emailPop
+		email = emailWithTeamId
 	}
 	if email == "" {
 		g.Log().Error(ctx, "Get email from set error")
@@ -395,7 +392,7 @@ func Completions(r *ghttp.Request) {
 		return
 	}
 	realModel := ChatReq.Get("model").String()
-	g.Log().Info(ctx, userToken, "使用", email, req.Model, "->", realModel, "发起会话")
+	g.Log().Info(ctx, userToken, "使用", emailWithTeamId, req.Model, "->", realModel, "发起会话")
 
 	// 使用email获取 accessToken
 	sessionCache := &config.CacheSession{}
@@ -424,11 +421,15 @@ func Completions(r *ghttp.Request) {
 
 	// ChatReq.Dump()
 	// 请求openai
-	resp, err := g.Client().SetHeaderMap(g.MapStrStr{
+	reqHeader := g.MapStrStr{
 		"Authorization": "Bearer " + accessToken,
 		"Content-Type":  "application/json",
 		"authkey":       config.AUTHKEY(ctx),
-	}).Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", ChatReq.MustToJson())
+	}
+	if teamId != "" {
+		reqHeader["ChatGPT-Account-ID"] = teamId
+	}
+	resp, err := g.Client().SetHeaderMap(reqHeader).Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", ChatReq.MustToJson())
 	if err != nil {
 		g.Log().Error(ctx, "g.Client().Post error: ", err)
 		r.Response.Status = 500
@@ -450,12 +451,12 @@ func Completions(r *ghttp.Request) {
 		clears_in = gjson.New(resStr).Get("detail.clears_in").Int()
 
 		if clears_in > 0 {
-			g.Log().Error(ctx, email, "resp.StatusCode==430", resStr)
+			g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==430", resStr)
 
 			r.Response.WriteStatusExit(430, resStr)
 			return
 		} else {
-			g.Log().Error(ctx, email, "resp.StatusCode==429", resStr)
+			g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==429", resStr)
 
 			r.Response.WriteStatusExit(429, resStr)
 			return
@@ -561,9 +562,9 @@ func Completions(r *ghttp.Request) {
 
 		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
 			isPlusInvalid = true
-			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "PLUS失效")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "PLUS失效")
 		} else {
-			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "完成会话")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "完成会话")
 		}
 
 	} else {
@@ -623,9 +624,9 @@ func Completions(r *ghttp.Request) {
 		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
 			isPlusInvalid = true
 
-			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "PLUS失效")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "PLUS失效")
 		} else {
-			g.Log().Info(ctx, userToken, "使用", email, realModel, "->", modelSlug, "完成会话")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "完成会话")
 		}
 	}
 
