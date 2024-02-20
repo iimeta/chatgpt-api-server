@@ -273,8 +273,9 @@ func Conversation(r *ghttp.Request) {
 		}
 	}
 	if resp.StatusCode != 200 {
-		g.Log().Error(ctx, email, "resp.StatusCode!=200", resp.StatusCode, resp.ReadAllString())
-		r.Response.WriteStatusExit(resp.StatusCode, resp.ReadAllString())
+		respText := resp.ReadAllString()
+		g.Log().Error(ctx, email, "resp.StatusCode!=200", resp.StatusCode, respText)
+		r.Response.WriteStatusExit(resp.StatusCode, respText)
 		return
 	}
 
