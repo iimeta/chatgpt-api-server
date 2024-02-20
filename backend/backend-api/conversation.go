@@ -213,7 +213,7 @@ func Conversation(r *ghttp.Request) {
 		}
 		// 使用email获取 accessToken
 		var sessionCache *config.CacheSession
-		cool.CacheManager.MustGet(ctx, "session:"+emailWithTeamId).Scan(&sessionCache)
+		cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
 		accessToken := sessionCache.AccessToken
 		err = utility.CheckAccessToken(accessToken)
 		if err != nil { // accessToken失效
