@@ -5,9 +5,9 @@ server:
   clientMaxBodySize: 104857600  # 100MB in bytes 100*1024*1024
 
 logger:
-  path: "./data/logs/"
-  file: "{Y-m-d}.log"
-  level : "info"
+  # path: "./data/logs/"
+  # file: "{Y-m-d}.log"
+  level : "all"
   stdout: true
 
 
@@ -30,7 +30,7 @@ redis:
     db: 0
 cool:
   autoMigrate: true
-  eps: false
+  eps: true
   file:
     mode: "local"
     domain: "http://127.0.0.1:8001"
@@ -39,7 +39,7 @@ modules:
   base:
     jwt:
       sso: false
-      secret: "cool-admin-go"
+      secret: "cool-admin-go123"
       token:
         expire: 7200 # 2*3600
         refreshExpire: 1296000 # 24*3600*15
@@ -48,3 +48,8 @@ modules:
         enable: 1
       log:
         enable: 1
+CHATPROXY: "https://demo.xyhelper.cn"
+# 接入网关的authkey
+AUTHKEY: "xyhelper"
+
+APIAUTH: "xyhelper"

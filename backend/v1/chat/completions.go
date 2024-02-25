@@ -334,13 +334,18 @@ func Completions(r *ghttp.Request) {
 						config.PlusSet.Remove(emailWithTeamId)
 						// 添加到set
 						config.NormalSet.Add(email)
+						g.Log().Info(ctx, "PLUS失效归还", email, "添加到NormalSet")
 						return
 					}
 					if clears_in > 0 {
 						// 延迟归还
+						g.Log().Info(ctx, "延迟"+gconv.String(clears_in)+"秒归还", emailWithTeamId, "到PlusSet")
+
 						time.Sleep(time.Duration(clears_in) * time.Second)
+
 					}
 					config.PlusSet.Add(emailWithTeamId)
+					g.Log().Info(ctx, "归还", emailWithTeamId, "到PlusSet")
 				}
 			}()
 		}()
@@ -349,9 +354,9 @@ func Completions(r *ghttp.Request) {
 			g.Log().Info(ctx, emailWithTeamId, ok)
 			if !ok {
 				g.Log().Error(ctx, "Get email from set error")
-				r.Response.Status = 500
+				r.Response.Status = 502
 				r.Response.WriteJson(g.Map{
-					"detail": "Server is busy, please try again later",
+					"detail": "Server is busy, please try again later|502",
 				})
 				return
 			}

@@ -23,7 +23,7 @@ logs/
 public/uploads/
 gf
 data/cool.sqlite
-config.yaml
+
 go.work
 openai/
 data/
