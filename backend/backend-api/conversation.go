@@ -19,11 +19,10 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/text/gstr"
+	"github.com/gogf/gf/v2/util/gconv"
 )
 
 var (
-	client = g.Client()
-
 	continueRequest = `{"action":"continue","conversation_id":"f8cdda28-fcae-4dc8-b8b6-687af2741ee7","parent_message_id":"c22837bf-c1f9-4579-a2b4-71102670cfe2","model":"text-davinci-002-render-sha","timezone_offset_min":-480,"history_and_training_disabled":false}`
 )
 
@@ -101,11 +100,14 @@ func Conversation(r *ghttp.Request) {
 	email := ""
 	teamId := ""
 	emailWithTeamId := ""
+	ok := false
+
 	clears_in := 0
 	// plus失效
 	isPlusInvalid := false
 	// 是否归还
 	isReturn := true
+	client := g.Client()
 
 	// 如果带有conversation_id，说明是继续会话，需要获取email	并获取accessToken
 	conversation_id := reqJson.Get("conversation_id").String()
@@ -154,18 +156,24 @@ func Conversation(r *ghttp.Request) {
 							config.PlusSet.Remove(emailWithTeamId)
 							// 添加到set
 							config.NormalSet.Add(email)
+							g.Log().Info(ctx, "PLUS失效归还", email, "添加到NormalSet")
+
 							return
 						}
 						if clears_in > 0 {
 							// 延迟归还
+							g.Log().Info(ctx, "延迟"+gconv.String(clears_in)+"秒归还", emailWithTeamId, "到PlusSet")
+
 							time.Sleep(time.Duration(clears_in) * time.Second)
 						}
 						config.PlusSet.Add(emailWithTeamId)
+						g.Log().Info(ctx, "归还", emailWithTeamId, "到PlusSet")
+
 					}
 				}()
 			}()
 			if email == "" {
-				emailWithTeamId, ok := config.PlusSet.Pop()
+				emailWithTeamId, ok = config.PlusSet.Pop()
 				if !ok {
 					g.Log().Error(ctx, "Get email from set error")
 					r.Response.Status = 500
@@ -175,6 +183,7 @@ func Conversation(r *ghttp.Request) {
 					return
 				}
 				// 如果emailWithTeamId 包含 | 说明是团队模式 使用|分割为 email 和 teamId
+				g.Log().Info(ctx, "获取", emailWithTeamId, "从PlusSet")
 				if gstr.Contains(emailWithTeamId, "|") {
 					emailWithTeamIdArr := gstr.Split(emailWithTeamId, "|")
 					email = emailWithTeamIdArr[0]
@@ -236,7 +245,7 @@ func Conversation(r *ghttp.Request) {
 		client.SetHeader("ChatGPT-Account-ID", teamId)
 	}
 	realModel := reqJson.Get("model").String()
-	g.Log().Info(ctx, userToken, "使用", email+"|"+teamId, realModel, "->", realModel, "发起会话")
+	g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", realModel, "发起会话")
 
 	resp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", reqJson)
 	if err != nil {
@@ -273,6 +282,7 @@ func Conversation(r *ghttp.Request) {
 		}
 	}
 	if resp.StatusCode != 200 {
+		resp.RawDump()
 		respText := resp.ReadAllString()
 		g.Log().Error(ctx, email, "resp.StatusCode!=200", resp.StatusCode, respText)
 		r.Response.WriteStatusExit(resp.StatusCode, respText)
@@ -364,9 +374,9 @@ func Conversation(r *ghttp.Request) {
 		g.Log().Debug(ctx, "modelSlug", modelSlug)
 		g.Log().Debug(ctx, "messageId", messageId)
 		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
-			g.Log().Info(ctx, userToken, "使用", email+"|"+teamId, realModel, "->", modelSlug, "PLUS失效")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "PLUS失效")
 		} else {
-			g.Log().Info(ctx, userToken, "使用", email+"|"+teamId, realModel, "->", modelSlug, "完成会话")
+			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "完成会话")
 		}
 		// g.Log().Debug(ctx, "messagBody", messagBody)
 		// 如果是max_tokens类型的完成,说明会话未结束，需要继续请求
