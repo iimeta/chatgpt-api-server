@@ -480,7 +480,7 @@ func Conversation(r *ghttp.Request) {
 		// 如果请求的会话ID与返回的会话ID不一致，说明是新的会话 需要写入缓存
 		if reqJson.Get("conversation_id").String() != conversationId {
 			if !history_and_training_disabled {
-				cool.CacheManager.Set(ctx, "conversation:"+conversationId, email, time.Hour*24*30)
+				cool.CacheManager.Set(ctx, "conversation:"+conversationId, emailWithTeamId, time.Hour*24*30)
 			}
 		}
 		r.ExitAll()
