@@ -1,19 +1,20 @@
 package config
 
 import (
-	"chatgpt-api-server/utility"
+	"backend/utility"
 	"math/rand"
 	"time"
 
 	"github.com/gogf/gf/v2/container/garray"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcache"
+	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
-func CHATPROXY(ctx g.Ctx) string {
-	return g.Cfg().MustGetWithEnv(ctx, "CHATPROXY").String()
-}
+// func CHATPROXY(ctx g.Ctx) string {
+// 	return g.Cfg().MustGetWithEnv(ctx, "CHATPROXY").String()
+// }
 
 func AUTHKEY(ctx g.Ctx) string {
 	// g.Log().Debug(ctx, "config.AUTHKEY", g.Cfg().MustGetWithEnv(ctx, "AUTHKEY").String())
@@ -32,6 +33,7 @@ var (
 	PlusSet          = utility.NewSafeQueue()
 	MAXTIME          = 0
 	TraceparentCache = gcache.New()
+	CHATPROXY        = ""
 )
 
 func PORT(ctx g.Ctx) int {
@@ -87,15 +89,25 @@ type CacheSession struct {
 }
 
 func init() {
+	ctx := gctx.GetInitCtx()
 	FreeModels.Append("text-davinci-002-render-sha")
 	FreeModels.Append("text-davinci-002-render-sha-mobile")
 	PlusModels.Append("gpt-4")
+	PlusModels.Append("gpt-4o")
 	PlusModels.Append("gpt-4-browsing")
 	PlusModels.Append("gpt-4-plugins")
 	PlusModels.Append("gpt-4-mobile")
 	PlusModels.Append("gpt-4-dalle")
 	PlusModels.Append("gpt-4-code-interpreter")
 	PlusModels.Append("gpt-4-gizmo")
+
+	chatproxy := g.Cfg().MustGetWithEnv(ctx, "CHATPROXY").String()
+	if chatproxy != "" {
+		CHATPROXY = chatproxy
+	} else {
+		panic("CHATPROXY is empty")
+	}
+	g.Log().Info(ctx, "CHATPROXY:", CHATPROXY)
 
 }
 func GenerateID(length int) string {

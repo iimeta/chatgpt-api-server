@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"chatgpt-api-server/config"
+	"backend/config"
 	"context"
 
 	"github.com/cool-team-official/cool-admin-go/cool"

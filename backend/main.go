@@ -1,19 +1,20 @@
 package main
 
 import (
-	_ "chatgpt-api-server/internal/packed"
+	_ "backend/internal/packed"
 
 	_ "github.com/cool-team-official/cool-admin-go/contrib/drivers/mysql"
 	_ "github.com/cool-team-official/cool-admin-go/contrib/drivers/sqlite"
 	_ "github.com/gogf/gf/contrib/nosql/redis/v2"
 
-	_ "chatgpt-api-server/backend-api"
-	_ "chatgpt-api-server/modules"
-	_ "chatgpt-api-server/v1"
+	_ "backend/arkose"
+	_ "backend/backend-api"
+	_ "backend/modules"
+	_ "backend/v1"
 
 	"github.com/gogf/gf/v2/os/gctx"
 
-	"chatgpt-api-server/internal/cmd"
+	"backend/internal/cmd"
 )
 
 func main() {

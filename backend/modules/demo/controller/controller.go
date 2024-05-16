@@ -1,7 +1,7 @@
 package controller
 
 import (
-	_ "chatgpt-api-server/modules/demo/controller/admin"
-	_ "chatgpt-api-server/modules/demo/controller/app"
-	_ "chatgpt-api-server/modules/demo/service"
+	_ "backend/modules/demo/controller/admin"
+	_ "backend/modules/demo/controller/app"
+	_ "backend/modules/demo/service"
 )

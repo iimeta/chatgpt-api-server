@@ -1,9 +1,9 @@
 package service
 
 import (
-	"chatgpt-api-server/config"
-	"chatgpt-api-server/modules/chatgpt/model"
-	"chatgpt-api-server/utility"
+	"backend/config"
+	"backend/modules/chatgpt/model"
+	"backend/utility"
 	"time"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
@@ -55,7 +55,7 @@ func AddAllSession(ctx g.Ctx) {
 				continue
 			}
 
-			getSessionUrl := config.CHATPROXY(ctx) + "/applelogin"
+			getSessionUrl := config.CHATPROXY + "/applelogin"
 			sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
 				"username":      email,
 				"password":      password,
@@ -159,7 +159,7 @@ func RefreshAllSession(ctx g.Ctx) {
 			continue
 		}
 
-		getSessionUrl := config.CHATPROXY(ctx) + "/applelogin"
+		getSessionUrl := config.CHATPROXY + "/applelogin"
 		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
 			"username":      email,
 			"password":      password,

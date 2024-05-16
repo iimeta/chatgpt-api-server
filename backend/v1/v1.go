@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"chatgpt-api-server/v1/chat"
+	"backend/v1/chat"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"

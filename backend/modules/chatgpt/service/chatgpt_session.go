@@ -1,9 +1,9 @@
 package service
 
 import (
-	"chatgpt-api-server/config"
-	"chatgpt-api-server/modules/chatgpt/model"
-	"chatgpt-api-server/utility"
+	"backend/config"
+	"backend/modules/chatgpt/model"
+	"backend/utility"
 	"time"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
@@ -126,7 +126,7 @@ func (s *ChatgptSessionService) ModifyAfter(ctx g.Ctx, method string, param map[
 // }
 
 func (s *ChatgptSessionService) GetSessionAndUpdateStatus(ctx g.Ctx, param g.Map, refreshToken string) error {
-	getSessionUrl := config.CHATPROXY(ctx) + "/applelogin"
+	getSessionUrl := config.CHATPROXY + "/applelogin"
 	sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).SetCookie("arkoseToken", gconv.String(param["arkoseToken"])).PostVar(ctx, getSessionUrl, g.Map{
 		"username":      param["email"],
 		"password":      param["password"],

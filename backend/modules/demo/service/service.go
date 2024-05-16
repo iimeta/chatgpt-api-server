@@ -1,5 +1,5 @@
 package service
 
 import (
-	_ "chatgpt-api-server/modules/demo/model"
+	_ "backend/modules/demo/model"
 )

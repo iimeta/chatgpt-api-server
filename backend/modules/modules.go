@@ -6,5 +6,5 @@ import (
 	_ "github.com/cool-team-official/cool-admin-go/modules/space"
 	_ "github.com/cool-team-official/cool-admin-go/modules/task"
 
-	_ "chatgpt-api-server/modules/chatgpt" // 引入chatgpt模块
+	_ "backend/modules/chatgpt" // 引入chatgpt模块
 )

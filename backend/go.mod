@@ -1,4 +1,4 @@
-module chatgpt-api-server
+module backend
 
 go 1.18
 

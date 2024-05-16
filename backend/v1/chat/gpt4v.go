@@ -1,11 +1,11 @@
 package chat
 
 import (
-	"chatgpt-api-server/apirespstream"
-	backendapi "chatgpt-api-server/backend-api"
-	"chatgpt-api-server/config"
-	"chatgpt-api-server/modules/chatgpt/model"
-	"chatgpt-api-server/utility"
+	"backend/apirespstream"
+	backendapi "backend/backend-api"
+	"backend/config"
+	"backend/modules/chatgpt/model"
+	"backend/utility"
 	"fmt"
 	"image"
 	"io"
@@ -266,7 +266,7 @@ func Gpt4v(r *ghttp.Request) {
 	if teamId != "" {
 		headerMap["ChatGPT-Account-ID"] = teamId
 	}
-	resp, err := g.Client().SetHeaderMap(headerMap).Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", ChatReq.MustToJson())
+	resp, err := g.Client().SetHeaderMap(headerMap).Post(ctx, config.CHATPROXY+"/backend-api/conversation", ChatReq.MustToJson())
 	if err != nil {
 		g.Log().Error(ctx, err)
 		r.Response.Status = 500
@@ -467,7 +467,7 @@ func UploadAzure(ctx g.Ctx, filepath string, token string, teamId string) (file_
 		headerMap["ChatGPT-Account-ID"] = teamId
 	}
 	// 获取上传地址 backend-api/files  POST
-	res, err := g.Client().SetHeaderMap(headerMap).ContentJson().Post(ctx, config.CHATPROXY(ctx)+"/backend-api/files", g.Map{
+	res, err := g.Client().SetHeaderMap(headerMap).ContentJson().Post(ctx, config.CHATPROXY+"/backend-api/files", g.Map{
 		"file_name": fileName,
 		"file_size": fileSize,
 		"use_case":  "multimodal",
@@ -523,7 +523,7 @@ func UploadAzure(ctx g.Ctx, filepath string, token string, teamId string) (file_
 		return
 	}
 	// 获取文件下载地址 backend-api/files/{file_id}/uploaded  POST
-	resdown, err := g.Client().SetHeaderMap(headerMap).ContentJson().Post(ctx, config.CHATPROXY(ctx)+"/backend-api/files/"+file_id+"/uploaded")
+	resdown, err := g.Client().SetHeaderMap(headerMap).ContentJson().Post(ctx, config.CHATPROXY+"/backend-api/files/"+file_id+"/uploaded")
 	if err != nil {
 		return
 	}

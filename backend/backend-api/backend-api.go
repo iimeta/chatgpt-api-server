@@ -1,9 +1,9 @@
 package backendapi
 
 import (
-	"chatgpt-api-server/config"
-	"chatgpt-api-server/modules/chatgpt/model"
-	"chatgpt-api-server/modules/chatgpt/service"
+	"backend/config"
+	"backend/modules/chatgpt/model"
+	"backend/modules/chatgpt/service"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -113,7 +113,7 @@ func ProxyAll(r *ghttp.Request) {
 	}
 	g.Log().Debug(ctx, "email", email)
 
-	UpStream := config.CHATPROXY(ctx)
+	UpStream := config.CHATPROXY
 	u, _ := url.Parse(UpStream)
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, e error) {

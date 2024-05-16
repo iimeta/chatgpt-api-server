@@ -29,7 +29,7 @@
 	<f-k-arkos
 		:public-key="publicKey"
 		mode="lightbox"
-		arkosUrl="https://tcr9i-login.closeai.biz"
+		arkosUrl=""
 		@onCompleted="onCompleted($event)"
 		@onError="onError($event)"
 	/>
@@ -85,21 +85,39 @@ const Upsert = useUpsert({
 		// 	data.userID = 0;
 		// }
 		localStorage.removeItem("arkoseToken");
-		window.myEnforcement.run();
+
+		if (!data.officialSession) {
+			ElMessage({
+				message: "请稍等,人机验证进行中.",
+				type: "warning"
+			});
+			window.myEnforcement.run();
+		}
 	},
 	onSubmit(data, { done, close, next }) {
-		// 自动生成uuid 作为userToken
 		let arkoseToken = localStorage.getItem("arkoseToken");
+		let w = window;
 		if (arkoseToken) {
+			localStorage.removeItem("arkoseToken");
+
 			next({ ...data, arkoseToken });
 			done();
 			close();
 		} else {
-			ElMessage({
-				message: "请先完成人机验证.",
-				type: "error"
-			});
-			done();
+			if (!data.officialSession) {
+				w.myEnforcement.run();
+				ElMessage({
+					message: "请稍等,人机验证进行中,验证完成后请重新点击确定保存.",
+					type: "warning"
+				});
+				// alert("请先完成人机验证");
+
+				done();
+			} else {
+				next(data);
+				done();
+				close();
+			}
 		}
 	}
 });
@@ -139,6 +157,7 @@ const Crud = useCrud(
 <script lang="ts">
 import FKArkos from "./FKArkos.vue";
 import { ElMessage, ElMessageBox } from "element-plus";
+
 import { defineComponent } from "vue";
 export default defineComponent({
 	components: {
@@ -159,13 +178,15 @@ export default defineComponent({
 				type: "success"
 			});
 			localStorage.setItem("arkoseToken", token);
+			// 设置过期时间 tokenExpire 为4分钟
+			// let tokenExpire = now.getTime() + 4 * 60 * 1000;
+			// localStorage.setItem("tokenExpire", tokenExpire);
 
 			this.arkoseToken = token;
 			// router.replace({ path: "/dashboard" });
 		},
 		onError(errorMessage: any) {
-			console.log("onError---------->", errorMessage.error.error);
-			// alert(errorMessage.error.error);
+			// alert(errorMessage);
 			ElMessageBox.alert("加载人机验证失败,请刷新页面重试!", errorMessage.error.error, {
 				// if you want to disable its autofocus
 				// autofocus: false,
@@ -177,9 +198,6 @@ export default defineComponent({
 				// 	});
 				// }
 			});
-		},
-		onReady() {
-			console.log("onReady---------->");
 		},
 
 		onSubmit() {

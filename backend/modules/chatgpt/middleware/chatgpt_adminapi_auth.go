@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"chatgpt-api-server/config"
+	"backend/config"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 )

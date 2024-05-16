@@ -1,7 +1,7 @@
 package demo
 
 import (
-	_ "chatgpt-api-server/modules/chatgpt/controller"
-	_ "chatgpt-api-server/modules/chatgpt/funcs"
-	_ "chatgpt-api-server/modules/chatgpt/middleware"
+	_ "backend/modules/chatgpt/controller"
+	_ "backend/modules/chatgpt/funcs"
+	_ "backend/modules/chatgpt/middleware"
 )

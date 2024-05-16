@@ -1,7 +1,7 @@
 package admin
 
 import (
-	"chatgpt-api-server/modules/chatgpt/service"
+	"backend/modules/chatgpt/service"
 
 	"github.com/cool-team-official/cool-admin-go/cool"
 )

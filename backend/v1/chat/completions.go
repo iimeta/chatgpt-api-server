@@ -1,12 +1,12 @@
 package chat
 
 import (
-	"chatgpt-api-server/apireq"
-	"chatgpt-api-server/apirespstream"
-	backendapi "chatgpt-api-server/backend-api"
-	"chatgpt-api-server/config"
-	"chatgpt-api-server/modules/chatgpt/model"
-	"chatgpt-api-server/utility"
+	"backend/apireq"
+	"backend/apirespstream"
+	backendapi "backend/backend-api"
+	"backend/config"
+	"backend/modules/chatgpt/model"
+	"backend/utility"
 	"context"
 	"fmt"
 	"io"
@@ -434,7 +434,7 @@ func Completions(r *ghttp.Request) {
 	if teamId != "" {
 		reqHeader["ChatGPT-Account-ID"] = teamId
 	}
-	resp, err := g.Client().SetHeaderMap(reqHeader).Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", ChatReq.MustToJson())
+	resp, err := g.Client().SetHeaderMap(reqHeader).Post(ctx, config.CHATPROXY+"/backend-api/conversation", ChatReq.MustToJson())
 	if err != nil {
 		g.Log().Error(ctx, "g.Client().Post error: ", err)
 		r.Response.Status = 500

@@ -1,9 +1,9 @@
 package backendapi
 
 import (
-	"chatgpt-api-server/config"
-	"chatgpt-api-server/modules/chatgpt/model"
-	"chatgpt-api-server/utility"
+	"backend/config"
+	"backend/modules/chatgpt/model"
+	"backend/utility"
 	"fmt"
 	"io"
 	"net/http"
@@ -247,7 +247,7 @@ func Conversation(r *ghttp.Request) {
 	realModel := reqJson.Get("model").String()
 	g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", realModel, "发起会话")
 
-	resp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", reqJson)
+	resp, err := client.Post(ctx, config.CHATPROXY+"/backend-api/conversation", reqJson)
 	if err != nil {
 		g.Log().Error(ctx, err)
 		r.Response.WriteStatusExit(500)
@@ -391,7 +391,7 @@ func Conversation(r *ghttp.Request) {
 			continueJson.Set("parent_message_id", messageId)
 			continueJson.Set("history_and_training_disabled", history_and_training_disabled)
 			g.Log().Debug(ctx, "continueJson", continueJson)
-			continueresp, err := client.Post(ctx, config.CHATPROXY(ctx)+"/backend-api/conversation", continueJson)
+			continueresp, err := client.Post(ctx, config.CHATPROXY+"/backend-api/conversation", continueJson)
 			if err != nil {
 				r.Response.WriteStatusExit(500)
 			}
@@ -501,7 +501,7 @@ func RefreshSession(email string) {
 	}
 	g.Log().Info(ctx, "RefreshSession", result["email"], "start")
 	// time.Sleep(5 * time.Minute)
-	getSessionUrl := config.CHATPROXY(ctx) + "/applelogin"
+	getSessionUrl := config.CHATPROXY + "/applelogin"
 	var sessionJson *gjson.Json
 	refreshToken := gjson.New(result["officialSession"]).Get("refresh_token").String()
 	sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
