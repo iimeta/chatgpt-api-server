@@ -149,11 +149,20 @@ func (s *ChatgptSessionService) GetSessionAndUpdateStatus(ctx g.Ctx, param g.Map
 		}
 	}
 	var isPlus int
+
 	models := sessionJson.Get("models").Array()
 	if len(models) > 1 {
 		isPlus = 1
 	} else {
 		isPlus = 0
+	}
+	plan_type := sessionJson.Get("accountCheckInfo.plan_type").String()
+	if plan_type == "plus" || plan_type == "team" {
+		isPlus = 1
+	}
+	if plan_type == "free" {
+		isPlus = 0
+
 	}
 	_, err := cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
 		"officialSession": sessionJson.String(),

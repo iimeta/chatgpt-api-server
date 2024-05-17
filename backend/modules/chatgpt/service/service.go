@@ -46,11 +46,19 @@ func AddAllSession(ctx g.Ctx) {
 		} else {
 			isPlus = 0
 		}
+		plan_type := officialSession.Get("accountCheckInfo.plan_type").String()
+		if plan_type == "plus" || plan_type == "team" {
+			isPlus = 1
+		}
+		if plan_type == "free" {
+			isPlus = 0
+
+		}
 		// 检测accessToken 是否过期,如果过期，就刷新
 		err := utility.CheckAccessToken(accessToken)
-		if err != nil || status == 0 {
+		if err != nil || status == 0 || plan_type == "" {
 			g.Log().Error(ctx, "AddAllSession", email, err)
-			if detail == "密码不正确!" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "403 Forbidden|Unknown or invalid refresh token.") {
+			if detail == "密码不正确!" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "403 Forbidden|Unknown or invalid refresh token.") || gstr.Contains(detail, "账号已被禁用") {
 				g.Log().Error(ctx, "AddAllSession", "账号异常,跳过刷新", email, detail)
 				continue
 			}
