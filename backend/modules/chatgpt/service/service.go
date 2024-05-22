@@ -9,7 +9,6 @@ import (
 	"github.com/cool-team-official/cool-admin-go/cool"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcron"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/text/gstr"
 )
@@ -17,11 +16,11 @@ import (
 func init() {
 	ctx := gctx.GetInitCtx()
 	go AddAllSession(ctx)
-	corn, err := gcron.AddSingleton(ctx, config.CRONINTERVAL(ctx), RefreshAllSession, "RefreshSession")
-	if err != nil {
-		panic(err)
-	}
-	g.Log().Info(ctx, "RefreshAllSession", "corn", corn, "cornInterval", config.CRONINTERVAL(ctx), "注册成功")
+	// corn, err := gcron.AddSingleton(ctx, config.CRONINTERVAL(ctx), RefreshAllSession, "RefreshSession")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// g.Log().Info(ctx, "RefreshAllSession", "corn", corn, "cornInterval", config.CRONINTERVAL(ctx), "注册成功")
 }
 
 // 启动时添加所有账号的session到缓存及set
