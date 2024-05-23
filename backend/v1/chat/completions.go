@@ -456,6 +456,11 @@ func Completions(r *ghttp.Request) {
 			if text == "" {
 				continue
 			}
+			if text == "[DONE]" {
+				r.Response.Writeln("data: " + text + "\n")
+				r.Response.Flush()
+				break
+			}
 			respJson := gjson.New(text)
 
 			replayModel := respJson.Get("model").String()
