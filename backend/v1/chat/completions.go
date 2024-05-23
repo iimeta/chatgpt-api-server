@@ -479,6 +479,7 @@ func Completions(r *ghttp.Request) {
 		} else {
 			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "完成会话")
 		}
+		return
 
 	} else {
 		respJson := gjson.New(resp.ReadAllString())
@@ -492,6 +493,7 @@ func Completions(r *ghttp.Request) {
 		} else {
 			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "完成会话")
 		}
+		return
 	}
 
 }
