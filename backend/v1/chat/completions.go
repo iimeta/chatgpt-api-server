@@ -1,15 +1,10 @@
 package chat
 
 import (
-	"backend/apireq"
-	"backend/apirespstream"
 	backendapi "backend/backend-api"
 	"backend/config"
 	"backend/modules/chatgpt/model"
-	"backend/utility"
 	"context"
-	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -20,8 +15,6 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
-	"github.com/google/uuid"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/launchdarkly/eventsource"
 )
 
@@ -271,40 +264,20 @@ func Completions(r *ghttp.Request) {
 	}
 
 	// g.Log().Debug(ctx, "token: ", token)
-	// 从请求中获取参数
-	req := &apireq.Req{}
-	err := r.GetRequestStruct(req)
+	reqJson, err := r.GetJson()
 	if err != nil {
-		g.Log().Error(ctx, "r.GetRequestStruct(req) error: ", err)
 		r.Response.Status = 400
-		r.Response.WriteJson(gjson.New(`{"error": "bad request"}`))
-		return
+		r.Response.WriteJson(g.Map{
+			"error": "bad request",
+		})
 	}
+	reqModel := reqJson.Get("model").String()
+	realModel := config.GetModel(ctx, reqModel)
+	reqJson.Set("model", realModel)
 	// g.Dump(req)
-	// 遍历 req.Messages 拼接 newMessages
-	newMessages := ""
-	for _, message := range req.Messages {
-		newMessages += message.Content + "\n"
-	}
-	// g.Dump(newMessages)
-	var ChatReq *gjson.Json
-	if gstr.HasPrefix(req.Model, "gpt-4") {
-		ChatReq = gjson.New(Chat4ReqStr)
-	} else {
-		ChatReq = gjson.New(ChatReqStr)
-	}
-
-	if gstr.HasPrefix(req.Model, "gpt-4-turbo") {
-		ChatReq = gjson.New(ChatTurboReqStr)
-	}
-
-	if req.Model == "gpt-4-mobile" {
-		ChatReq = gjson.New(ChatReqStr)
-		ChatReq.Set("model", "gpt-4-mobile")
-	}
 
 	// 如果不是plus用户但是使用了plus模型
-	if !isPlusUser && gstr.HasPrefix(req.Model, "gpt-4") {
+	if !isPlusUser && gstr.HasPrefix(realModel, "gpt-4") {
 		r.Response.Status = 501
 		r.Response.WriteJson(g.Map{
 			"detail": "plus user only",
@@ -320,7 +293,7 @@ func Completions(r *ghttp.Request) {
 	isPlusInvalid := false
 	// 是否归还
 	isReturn := true
-	isPlusModel := gstr.HasPrefix(req.Model, "gpt-4")
+	isPlusModel := gstr.HasPrefix(realModel, "gpt-4")
 	if isPlusModel {
 		defer func() {
 			go func() {
@@ -396,45 +369,23 @@ func Completions(r *ghttp.Request) {
 		})
 		return
 	}
-	realModel := ChatReq.Get("model").String()
-	g.Log().Info(ctx, userToken, "使用", emailWithTeamId, req.Model, "->", realModel, "发起会话")
+	g.Log().Info(ctx, userToken, "使用", emailWithTeamId, reqModel, "->", realModel, "发起会话")
 
 	// 使用email获取 accessToken
 	sessionCache := &config.CacheSession{}
 	cool.CacheManager.MustGet(ctx, "session:"+email).Scan(&sessionCache)
-	accessToken := sessionCache.AccessToken
-	err = utility.CheckAccessToken(accessToken)
-	if err != nil { // accessToken失效
-		g.Log().Error(ctx, err)
-		isReturn = false
-		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
-
-		go backendapi.RefreshSession(email)
-		r.Response.Status = 401
-		r.Response.WriteJson(g.Map{
-			"detail": "accessToken is invalid,will be refresh",
-		})
-		return
-	}
-	ChatReq.Set("messages.0.content.parts.0", newMessages)
-	ChatReq.Set("messages.0.id", uuid.NewString())
-	ChatReq.Set("parent_message_id", uuid.NewString())
-	if len(req.PluginIds) > 0 {
-		ChatReq.Set("plugin_ids", req.PluginIds)
-	}
-	ChatReq.Set("history_and_training_disabled", true)
 
 	// ChatReq.Dump()
 	// 请求openai
 	reqHeader := g.MapStrStr{
-		"Authorization": "Bearer " + accessToken,
-		"Content-Type":  "application/json",
-		"authkey":       config.AUTHKEY(ctx),
+		"Authorization":     "Bearer " + sessionCache.RefreshToken,
+		"Content-Type":      "application/json",
+		"Replay-Real-Model": "true",
 	}
 	if teamId != "" {
 		reqHeader["ChatGPT-Account-ID"] = teamId
 	}
-	resp, err := g.Client().SetHeaderMap(reqHeader).Post(ctx, config.CHATPROXY+"/backend-api/conversation", ChatReq.MustToJson())
+	resp, err := g.Client().SetHeaderMap(reqHeader).Post(ctx, config.CHATPROXY+"/v1/chat/completions", reqJson)
 	if err != nil {
 		g.Log().Error(ctx, "g.Client().Post error: ", err)
 		r.Response.Status = 500
@@ -471,28 +422,26 @@ func Completions(r *ghttp.Request) {
 	if resp.StatusCode != 200 {
 		g.Log().Error(ctx, "resp.StatusCode: ", resp.StatusCode)
 		r.Response.Status = resp.StatusCode
-		r.Response.WriteJson(gjson.New(resp.ReadAllString()))
+		if resp.Header.Get("Content-Type") == "application/json" {
+			r.Response.WriteJson(gjson.New(resp.ReadAllString()))
+		} else {
+			r.Response.WriteJson(g.Map{
+				"detail": "openai respone error|" + resp.Status,
+			})
+		}
 		return
 	}
-	// if resp.Header.Get("Content-Type") != "text/event-stream; charset=utf-8" && resp.Header.Get("Content-Type") != "text/event-stream" {
-	// 	g.Log().Error(ctx, "resp.Header.Get(Content-Type): ", resp.Header.Get("Content-Type"))
-	// 	r.Response.Status = 500
-	// 	r.Response.WriteJson(gjson.New(`{"detail": "internal server error"}`))
-	// 	return
-	// }
 
 	// 流式返回
-	if req.Stream {
+	if gstr.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
 		r.Response.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 		r.Response.Header().Set("Cache-Control", "no-cache")
 		r.Response.Header().Set("Connection", "keep-alive")
 		modelSlug := ""
 
-		message := ""
 		decoder := eventsource.NewDecoder(resp.Body)
 		defer decoder.Decode()
 
-		id := config.GenerateID(29)
 		for {
 			event, err := decoder.Decode()
 			if err != nil {
@@ -507,62 +456,16 @@ func Completions(r *ghttp.Request) {
 			if text == "" {
 				continue
 			}
-			if text == "[DONE]" {
-				apiRespStrEnd := gstr.Replace(ApiRespStrStreamEnd, "apirespid", id)
-				apiRespStrEnd = gstr.Replace(apiRespStrEnd, "apicreated", gconv.String(time.Now().Unix()))
-				apiRespStrEnd = gstr.Replace(apiRespStrEnd, "apirespmodel", req.Model)
-				r.Response.Writefln("data: " + apiRespStrEnd + "\n\n")
-				r.Response.Flush()
-				r.Response.Writefln("data: " + text + "\n\n")
-				r.Response.Flush()
-				continue
-				// resp.Close()
+			respJson := gjson.New(text)
 
-				// break
+			replayModel := respJson.Get("model").String()
+			if replayModel != "" {
+				modelSlug = replayModel
 			}
-			// gjson.New(text).Dump()
-			role := gjson.New(text).Get("message.author.role").String()
-			if role == "assistant" {
-				messageTemp := gjson.New(text).Get("message.content.parts.0").String()
-				model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
-				if model_slug != "" {
-					modelSlug = model_slug
-				}
-				// g.Log().Debug(ctx, "messageTemp: ", messageTemp)
-				// 如果 messageTemp 不包含 message 且plugin_ids为空
-				if !gstr.Contains(messageTemp, message) && len(req.PluginIds) == 0 {
-					continue
-				}
+			respJson.Set("model", reqModel)
 
-				content := strings.Replace(messageTemp, message, "", 1)
-				if content == "" {
-					continue
-				}
-				message = messageTemp
-				apiResp := gjson.New(ApiRespStrStream)
-				apiResp.Set("id", id)
-				apiResp.Set("created", time.Now().Unix())
-				apiResp.Set("choices.0.delta.content", content)
-				// if req.Model == "gpt-4" {
-				// 	apiResp.Set("model", "gpt-4")
-				// }
-				apiResp.Set("model", req.Model)
-				apiRespStruct := &apirespstream.ApiRespStreamStruct{}
-				gconv.Struct(apiResp, apiRespStruct)
-				// g.Dump(apiRespStruct)
-				// 创建一个jsoniter的Encoder
-				json := jsoniter.ConfigCompatibleWithStandardLibrary
-
-				// 将结构体转换为JSON文本并保持顺序
-				sortJson, err := json.Marshal(apiRespStruct)
-				if err != nil {
-					fmt.Println("转换JSON出错:", err)
-					continue
-				}
-				r.Response.Writeln("data: " + string(sortJson) + "\n\n")
-				r.Response.Flush()
-			}
-
+			r.Response.Writeln("data: " + respJson.String() + "\n")
+			r.Response.Flush()
 		}
 
 		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
@@ -573,59 +476,10 @@ func Completions(r *ghttp.Request) {
 		}
 
 	} else {
-		// 非流式回应
-		modelSlug := ""
-		content := ""
-		decoder := eventsource.NewDecoder(resp.Body)
-		defer decoder.Decode()
-
-		for {
-			event, err := decoder.Decode()
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				continue
-			}
-			text := event.Data()
-			if text == "" {
-				continue
-			}
-			if text == "[DONE]" {
-				resp.Close()
-				break
-			}
-
-			role := gjson.New(text).Get("message.author.role").String()
-			if role == "assistant" {
-				model_slug := gjson.New(text).Get("message.metadata.model_slug").String()
-				if model_slug != "" {
-					modelSlug = model_slug
-				}
-				message := gjson.New(text).Get("message.content.parts.0").String()
-				if message != "" {
-					content = message
-				}
-			}
-		}
-		completionTokens := CountTokens(content)
-		promptTokens := CountTokens(newMessages)
-		totalTokens := completionTokens + promptTokens
-
-		apiResp := gjson.New(ApiRespStr)
-		apiResp.Set("choices.0.message.content", content)
-		id := config.GenerateID(29)
-		apiResp.Set("id", id)
-		apiResp.Set("created", time.Now().Unix())
-		// if req.Model == "gpt-4" {
-		// 	apiResp.Set("model", "gpt-4")
-		// }
-		apiResp.Set("model", req.Model)
-
-		apiResp.Set("usage.prompt_tokens", promptTokens)
-		apiResp.Set("usage.completion_tokens", completionTokens)
-		apiResp.Set("usage.total_tokens", totalTokens)
-		r.Response.WriteJson(apiResp)
+		respJson := gjson.New(resp.ReadAllString())
+		modelSlug := respJson.Get("model").String()
+		respJson.Set("model", reqModel)
+		r.Response.WriteJson(respJson)
 		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
 			isPlusInvalid = true
 

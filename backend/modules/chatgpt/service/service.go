@@ -40,6 +40,7 @@ func AddAllSession(ctx g.Ctx) {
 		refreshToken := officialSession.Get("refresh_token").String()
 		detail := officialSession.Get("detail").String()
 		models := officialSession.Get("models").Array()
+
 		if len(models) > 1 {
 			isPlus = 1
 		} else {
@@ -106,6 +107,7 @@ func AddAllSession(ctx g.Ctx) {
 			IsPlus:       isPlus,
 			AccessToken:  accessToken,
 			CooldownTime: 0,
+			RefreshToken: refreshToken,
 		}
 		err = cool.CacheManager.Set(ctx, "session:"+email, cacheSession, time.Hour*24*10)
 

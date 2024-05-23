@@ -5,7 +5,9 @@ import (
 	"math/rand"
 	"time"
 
+	baseservice "github.com/cool-team-official/cool-admin-go/modules/base/service"
 	"github.com/gogf/gf/v2/container/garray"
+	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcache"
 	"github.com/gogf/gf/v2/os/gctx"
@@ -86,6 +88,7 @@ type CacheSession struct {
 	AccessToken  string `json:"accessToken"`
 	IsPlus       int    `json:"isPlus"`
 	CooldownTime int64  `json:"cooldownTime"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 func init() {
@@ -108,8 +111,15 @@ func init() {
 		panic("CHATPROXY is empty")
 	}
 	g.Log().Info(ctx, "CHATPROXY:", CHATPROXY)
+	modelmapStr, err := baseservice.NewBaseSysParamService().DataByKey(ctx, "modelmap")
+	if err != nil {
+		panic(err)
+	}
+	modelmap := gconv.MapStrStr(modelmapStr)
+	g.Dump(modelmap)
 
 }
+
 func GenerateID(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	// rand.Seed(time.Now().UnixNano())
@@ -119,4 +129,20 @@ func GenerateID(length int) string {
 		id += string(charset[rand.Intn(len(charset))])
 	}
 	return id
+}
+
+func GetModel(ctx g.Ctx, model string) string {
+	// g.Log().Debug(ctx, "GetModel", model)
+	modelMapStr, err := baseservice.NewBaseSysParamService().DataByKey(ctx, "modelmap")
+	if err != nil {
+		g.Log().Error(ctx, "GetModel", err)
+		return DefaultModel
+	}
+	// g.Dump(modelMapStr)
+	modelMap := gconv.MapStrStr(gjson.New(modelMapStr))
+	// g.Dump(modelMap)
+	if v, ok := modelMap[model]; ok {
+		return v
+	}
+	return DefaultModel
 }

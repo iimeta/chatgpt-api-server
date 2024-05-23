@@ -1,0 +1,7 @@
+{   
+    "gpt-3.5-turbo": "text-davinci-002-render-sha",
+    "gpt-4": "gpt-4",
+    "gpt-4o": "gpt-4o",
+    "gpt-4-0125":"gpt-4o"
+  }
+  

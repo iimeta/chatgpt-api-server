@@ -164,6 +164,7 @@ func (s *ChatgptSessionService) GetSessionAndUpdateStatus(ctx g.Ctx, param g.Map
 		isPlus = 0
 
 	}
+	RefreshToken := sessionJson.Get("refresh_token").String()
 	_, err := cool.DBM(s.Model).Where("email=?", param["email"]).Update(g.Map{
 		"officialSession": sessionJson.String(),
 		"isPlus":          isPlus,
@@ -172,9 +173,10 @@ func (s *ChatgptSessionService) GetSessionAndUpdateStatus(ctx g.Ctx, param g.Map
 	// 写入缓存及set
 	email := param["email"].(string)
 	cacheSession := &config.CacheSession{
-		Email:       email,
-		AccessToken: sessionJson.Get("accessToken").String(),
-		IsPlus:      isPlus,
+		Email:        email,
+		AccessToken:  sessionJson.Get("accessToken").String(),
+		IsPlus:       isPlus,
+		RefreshToken: RefreshToken,
 	}
 	cool.CacheManager.Set(ctx, "session:"+email, cacheSession, time.Hour*24*10)
 	// 添加到set
