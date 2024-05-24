@@ -448,7 +448,7 @@ func Completions(r *ghttp.Request) {
 				// if err == io.EOF {
 				// 	break
 				// }
-				// g.Log().Info(ctx, "释放资源")
+				g.Log().Info(ctx, "释放资源")
 				break
 			}
 			text := event.Data()
@@ -459,7 +459,7 @@ func Completions(r *ghttp.Request) {
 			if text == "[DONE]" {
 				r.Response.Writeln("data: " + text + "\n")
 				r.Response.Flush()
-				break
+				continue
 			}
 			respJson := gjson.New(text)
 
@@ -479,6 +479,7 @@ func Completions(r *ghttp.Request) {
 		} else {
 			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "完成会话")
 		}
+		r.ExitAll()
 		return
 
 	} else {
