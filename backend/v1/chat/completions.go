@@ -473,7 +473,7 @@ func Completions(r *ghttp.Request) {
 			r.Response.Flush()
 		}
 
-		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
+		if realModel != "text-davinci-002-render-sha" && realModel != "auto" && modelSlug == "text-davinci-002-render-sha" {
 			isPlusInvalid = true
 			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "PLUS失效")
 		} else {
@@ -487,7 +487,7 @@ func Completions(r *ghttp.Request) {
 		modelSlug := respJson.Get("model").String()
 		respJson.Set("model", reqModel)
 		r.Response.WriteJson(respJson)
-		if realModel != "text-davinci-002-render-sha" && modelSlug == "text-davinci-002-render-sha" {
+		if realModel != "text-davinci-002-render-sha" && realModel != "auto" && modelSlug == "text-davinci-002-render-sha" {
 			isPlusInvalid = true
 
 			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "PLUS失效")
