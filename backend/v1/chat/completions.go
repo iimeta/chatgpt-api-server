@@ -396,7 +396,11 @@ func Completions(r *ghttp.Request) {
 	if resp.StatusCode == 401 || resp.StatusCode == 402 {
 		g.Log().Error(ctx, "token过期,需要重新获取token", email, resp.ReadAllString())
 		isReturn = false
-		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{"status": 0})
+		cool.DBM(model.NewChatgptSession()).Where("email", email).Update(g.Map{
+			"status":          0, // token过期
+			"officialSession": "token过期,需要重新获取token",
+		})
+		isReturn = false
 		go backendapi.RefreshSession(email)
 		r.Response.WriteStatus(401, resp.ReadAllString())
 		return
@@ -407,9 +411,9 @@ func Completions(r *ghttp.Request) {
 		clears_in = gjson.New(resStr).Get("detail.clears_in").Int()
 
 		if clears_in > 0 {
-			g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==430", resStr)
+			g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==429", resStr)
 
-			r.Response.WriteStatusExit(430, resStr)
+			r.Response.WriteStatusExit(429, resStr)
 			return
 		} else {
 			g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==429", resStr)

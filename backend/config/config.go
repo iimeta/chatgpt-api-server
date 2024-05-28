@@ -33,6 +33,7 @@ var (
 	PlusModels       = garray.NewStrArray()
 	NormalSet        = utility.NewSafeQueue()
 	PlusSet          = utility.NewSafeQueue()
+	Gpt_4o_Set       = utility.NewSafeQueue()
 	MAXTIME          = 0
 	TraceparentCache = gcache.New()
 	CHATPROXY        = ""

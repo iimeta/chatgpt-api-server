@@ -211,6 +211,7 @@ func Conversation(r *ghttp.Request) {
 			}()
 
 			email = emailPop
+			emailWithTeamId = email
 		}
 		if email == "" {
 			g.Log().Error(ctx, "Get email from set error")
@@ -479,9 +480,9 @@ func Conversation(r *ghttp.Request) {
 		}
 		// 如果请求的会话ID与返回的会话ID不一致，说明是新的会话 需要写入缓存
 		if reqJson.Get("conversation_id").String() != conversationId {
-			if !history_and_training_disabled {
-				cool.CacheManager.Set(ctx, "conversation:"+conversationId, emailWithTeamId, time.Hour*24*30)
-			}
+
+			cool.CacheManager.Set(ctx, "conversation:"+conversationId, emailWithTeamId, time.Hour*24*30)
+
 		}
 		r.ExitAll()
 
@@ -503,12 +504,12 @@ func RefreshSession(email string) {
 	// time.Sleep(5 * time.Minute)
 	getSessionUrl := config.CHATPROXY + "/applelogin"
 	var sessionJson *gjson.Json
-	refreshToken := gjson.New(result["officialSession"]).Get("refresh_token").String()
+	// refreshToken := gjson.New(result["officialSession"]).Get("refresh_token").String()
 	sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
-		"username":      result["email"],
-		"password":      result["password"],
-		"refresh_token": refreshToken,
-		"authkey":       config.AUTHKEY(ctx),
+		"username": result["email"],
+		"password": result["password"],
+		// "refresh_token": refreshToken,
+		"authkey": config.AUTHKEY(ctx),
 	})
 	sessionJson = gjson.New(sessionVar)
 	detail := sessionJson.Get("detail").String()
@@ -540,12 +541,15 @@ func RefreshSession(email string) {
 		g.Log().Error(ctx, "RefreshSession", err)
 		return
 	}
+	RefreshToken := sessionJson.Get("refresh_token").String()
+
 	// 更新缓存
 	cacheSession := &config.CacheSession{
 		Email:        email,
 		AccessToken:  sessionJson.Get("accessToken").String(),
 		IsPlus:       isPlus,
 		CooldownTime: 0,
+		RefreshToken: RefreshToken,
 	}
 	cool.CacheManager.Set(ctx, "session:"+email, cacheSession, time.Hour*24*10)
 
