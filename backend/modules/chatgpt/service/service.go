@@ -26,7 +26,7 @@ func init() {
 
 // 启动时添加所有账号的session到缓存及set
 func AddAllSession(ctx g.Ctx) {
-	record, err := cool.DBM(model.NewChatgptSession()).OrderAsc("updateTime").All()
+	record, err := cool.DBM(model.NewChatgptSession()).OrderAsc("updateTime").Where("status=1").All()
 	if err != nil {
 		g.Log().Error(ctx, "AddAllSession", err)
 		return
@@ -35,18 +35,11 @@ func AddAllSession(ctx g.Ctx) {
 		email := v["email"].String()
 		password := v["password"].String()
 		isPlus := v["isPlus"].Int()
-		status := 0
+		status := 1
 		officialSession := gjson.New(v["officialSession"])
 		accessToken := officialSession.Get("accessToken").String()
 		refreshToken := officialSession.Get("refresh_token").String()
-		detail := officialSession.Get("detail").String()
-		models := officialSession.Get("models").Array()
 
-		if len(models) > 1 {
-			isPlus = 1
-		} else {
-			isPlus = 0
-		}
 		plan_type := officialSession.Get("accountCheckInfo.plan_type").String()
 		if plan_type == "plus" || plan_type == "team" {
 			isPlus = 1
@@ -55,51 +48,45 @@ func AddAllSession(ctx g.Ctx) {
 			isPlus = 0
 
 		}
+		g.Log().Info(ctx, "AddAllSession", email, "accessToken", accessToken, "refreshToken", refreshToken, "isPlus", isPlus, "status", status)
 
-		if detail == "密码不正确!" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "mfa_bypass") || gstr.Contains(detail, "两步验证") {
-			g.Log().Error(ctx, "AddAllSession", "账号异常,跳过刷新", email, detail)
-			continue
-		}
+		if refreshToken == "" {
 
-		getSessionUrl := config.CHATPROXY + "/applelogin"
-		sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
-			"username":      email,
-			"password":      password,
-			"authkey":       config.AUTHKEY(ctx),
-			"refresh_token": refreshToken,
-		})
-		sessionJson := gjson.New(sessionVar)
-		accessToken = sessionJson.Get("accessToken").String()
-		refreshToken = sessionJson.Get("refresh_token").String()
-		if accessToken == "" {
-			g.Log().Error(ctx, "AddAllSession", email, "get session error", sessionJson)
-			detail := sessionJson.Get("detail").String()
-			if detail == "密码不正确!" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "403 Forbidden|Unknown or invalid refresh token.") {
-				g.Log().Error(ctx, "AddAllSession", email, detail)
-				cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
-					"officialSession": sessionJson.String(),
-					"status":          0,
-				})
+			getSessionUrl := config.CHATPROXY + "/applelogin"
+			sessionVar := g.Client().SetHeader("authkey", config.AUTHKEY(ctx)).PostVar(ctx, getSessionUrl, g.Map{
+				"username": email,
+				"password": password,
+			})
+			sessionJson := gjson.New(sessionVar)
+			accessToken = sessionJson.Get("accessToken").String()
+			refreshToken = sessionJson.Get("refresh_token").String()
+
+			if accessToken == "" {
+				g.Log().Error(ctx, "AddAllSession", email, "get session error", sessionJson)
+				detail := sessionJson.Get("detail").String()
+				if detail == "密码不正确!" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "mfa_bypass") || gstr.Contains(detail, "两步验证") {
+					g.Log().Error(ctx, "AddAllSession", email, detail)
+					cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+						"officialSession": sessionJson.String(),
+						"status":          0,
+					})
+				}
+				continue
 			}
-			continue
-		}
-		plan_type = sessionJson.Get("accountCheckInfo.plan_type").String()
-		if plan_type == "plus" || plan_type == "team" {
-			isPlus = 1
-		}
-		if plan_type == "free" {
-			isPlus = 0
+			plan_type = sessionJson.Get("accountCheckInfo.plan_type").String()
+			if plan_type == "plus" || plan_type == "team" {
+				isPlus = 1
+			}
+			if plan_type == "free" {
+				isPlus = 0
 
-		}
-		status = 1
-		cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
-			"officialSession": sessionJson.String(),
-			"isPlus":          isPlus,
-			"status":          status,
-		})
-
-		if status == 0 {
-			continue
+			}
+			status = 1
+			cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+				"officialSession": sessionJson.String(),
+				"isPlus":          isPlus,
+				"status":          status,
+			})
 		}
 
 		// 添加到缓存
@@ -211,6 +198,7 @@ func RefreshAllSession(ctx g.Ctx) {
 			IsPlus:       isPlus,
 			AccessToken:  accessToken,
 			CooldownTime: 0,
+			RefreshToken: refreshToken,
 		}
 		err = cool.CacheManager.Set(ctx, "session:"+email, cacheSession, time.Hour*24*10)
 

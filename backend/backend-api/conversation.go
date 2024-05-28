@@ -509,11 +509,11 @@ func RefreshSession(email string) {
 		"username": result["email"],
 		"password": result["password"],
 		// "refresh_token": refreshToken,
-		"authkey": config.AUTHKEY(ctx),
+		// "authkey": config.AUTHKEY(ctx),
 	})
 	sessionJson = gjson.New(sessionVar)
 	detail := sessionJson.Get("detail").String()
-	if detail == "密码不正确!" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "403 Forbidden|Unknown or invalid refresh token.") {
+	if detail == "密码不正确!" || gstr.Contains(detail, "account_deactivated") || gstr.Contains(detail, "mfa_bypass") || gstr.Contains(detail, "两步验证") {
 		g.Log().Error(ctx, "AddAllSession", email, detail)
 		cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
 			"officialSession": sessionJson.String(),
@@ -526,12 +526,14 @@ func RefreshSession(email string) {
 		return
 	}
 	var isPlus int
-	models := sessionJson.Get("models").Array()
-	if len(models) > 1 {
+
+	plan_type := sessionJson.Get("accountCheckInfo.plan_type").String()
+	if plan_type == "plus" || plan_type == "team" {
 		isPlus = 1
 	} else {
 		isPlus = 0
 	}
+
 	_, err = cool.DBM(m).Where("email=?", result["email"]).Update(g.Map{
 		"officialSession": sessionJson.String(),
 		"status":          1,
