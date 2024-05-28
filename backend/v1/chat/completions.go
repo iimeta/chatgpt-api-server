@@ -422,6 +422,22 @@ func Completions(r *ghttp.Request) {
 			return
 		}
 	}
+	if resp.StatusCode == 403 && resp.Header.Get("Content-Type") == "application/json" {
+		g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==403", resp.ReadAllString())
+		resStr := resp.ReadAllString()
+		code := gjson.New(resStr).Get("detail.code").String()
+		if code != "" {
+			cool.DBM(model.NewChatgptSession()).Where("email=?", email).Update(g.Map{
+				"status":          0,
+				"officialSession": code,
+			})
+			go backendapi.RefreshSession(email)
+		}
+
+		r.Response.WriteStatusExit(403, resp.ReadAllString())
+		return
+
+	}
 	// 如果返回结果不是200
 	if resp.StatusCode != 200 {
 		g.Log().Error(ctx, "resp.StatusCode: ", resp.StatusCode)
