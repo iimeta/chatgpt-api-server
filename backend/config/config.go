@@ -28,7 +28,7 @@ func USERTOKENLOCK(ctx g.Ctx) bool {
 }
 
 var (
-	DefaultModel     = "text-davinci-002-render-sha"
+	DefaultModel     = "auto"
 	FreeModels       = garray.NewStrArray()
 	PlusModels       = garray.NewStrArray()
 	NormalSet        = utility.NewSafeQueue()
