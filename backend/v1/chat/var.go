@@ -197,3 +197,14 @@ var (
 	}`
 	ApiRespStrStreamEnd = `{"id":"apirespid","object":"chat.completion.chunk","created":apicreated,"model": "apirespmodel","choices":[{"delta": {},"index": 0,"finish_reason": "stop"}]}`
 )
+
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type Req struct {
+	Messages []Message `json:"messages"`
+	Model    string    `json:"model"`
+	Stream   bool      `json:"stream"`
+}

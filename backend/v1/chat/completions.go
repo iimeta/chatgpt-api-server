@@ -25,7 +25,12 @@ func Completions(r *ghttp.Request) {
 	if userToken == "" {
 		r.Response.Status = 401
 		r.Response.WriteJson(g.Map{
-			"detail": "Authentication credentials were not provided.",
+			"error": g.Map{
+				"message": "Missing bearer or basic authentication in header",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    nil,
+			},
 		})
 	}
 	isPlusUser := false
@@ -47,7 +52,12 @@ func Completions(r *ghttp.Request) {
 			g.Log().Error(ctx, "userToken not found:", userToken)
 			r.Response.Status = 401
 			r.Response.WriteJson(g.Map{
-				"detail": "userToken not found",
+				"error": g.Map{
+					"message": "Incorrect API key provided: " + userToken + ". You can find your API key at https://platform.openai.com/account/api-keys.",
+					"type":    "invalid_request_error",
+					"param":   nil,
+					"code":    "invalid_api_key",
+				},
 			})
 			return
 		}
@@ -57,23 +67,42 @@ func Completions(r *ghttp.Request) {
 	}
 
 	// g.Log().Debug(ctx, "token: ", token)
-	reqJson, err := r.GetJson()
+	req := &Req{}
+	err := r.GetRequestStruct(req)
 	if err != nil {
+		g.Log().Error(ctx, err)
 		r.Response.Status = 400
 		r.Response.WriteJson(g.Map{
-			"error": "bad request",
+			"error": g.Map{
+				"message": "Invalid request",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    "invalid_request",
+			},
 		})
+		return
 	}
-	reqModel := reqJson.Get("model").String()
+	reqModel := req.Model
 	realModel := config.GetModel(ctx, reqModel)
-	reqJson.Set("model", realModel)
+	req.Model = realModel
+	isStream := req.Stream
+	req.Stream = true
+	fullQuestion := ""
+	for _, message := range req.Messages {
+		fullQuestion += message.Content
+	}
 	// g.Dump(req)
 
 	// 如果不是plus用户但是使用了plus模型
 	if !isPlusUser && gstr.HasPrefix(realModel, "gpt-4") {
-		r.Response.Status = 501
+		r.Response.Status = 400
 		r.Response.WriteJson(g.Map{
-			"detail": "plus user only",
+			"error": g.Map{
+				"message": "You are not a plus user, please use the normal model",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    "invalid_model",
+			},
 		})
 		return
 	}
@@ -87,6 +116,37 @@ func Completions(r *ghttp.Request) {
 	// 是否归还
 	isReturn := true
 	isPlusModel := gstr.HasPrefix(realModel, "gpt-4")
+	promptTokens := CountTokens(fullQuestion)
+
+	if isPlusModel {
+		if promptTokens > 32*1024 {
+			g.Log().Error(ctx, userToken, reqModel, realModel, promptTokens, "tokens too long")
+			r.Response.Status = 400
+			r.Response.WriteJson(g.Map{
+				"error": g.Map{
+					"message": "The message you submitted was too long," + gconv.String(promptTokens) + " tokens, please reload the conversation and submit something shorter.",
+					"type":    "invalid_request_error",
+					"param":   nil,
+					"code":    "message_length_exceeds_limit",
+				},
+			})
+			return
+		}
+	} else {
+		if promptTokens > 8*1024 {
+			g.Log().Error(ctx, userToken, reqModel, realModel, promptTokens, "tokens too long")
+			r.Response.Status = 400
+			r.Response.WriteJson(g.Map{
+				"error": g.Map{
+					"message": "The message you submitted was too long," + gconv.String(promptTokens) + " tokens, please reload the conversation and submit something shorter.",
+					"type":    "invalid_request_error",
+					"param":   nil,
+					"code":    "message_length_exceeds_limit",
+				},
+			})
+			return
+		}
+	}
 	if isPlusModel {
 		defer func() {
 			go func() {
@@ -158,11 +218,16 @@ func Completions(r *ghttp.Request) {
 		g.Log().Error(ctx, "Get email from set error")
 		r.Response.Status = 500
 		r.Response.WriteJson(g.Map{
-			"detail": "Server is busy, please try again later",
+			"error": g.Map{
+				"message": "Server is busy, please try again later",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    "server_busy",
+			},
 		})
 		return
 	}
-	g.Log().Info(ctx, userToken, "使用", emailWithTeamId, reqModel, "->", realModel, "发起会话")
+	g.Log().Info(ctx, userToken, "使用", emailWithTeamId, reqModel, "->", realModel, "发起会话", "isStream:", isStream)
 
 	// 使用email获取 accessToken
 	sessionCache := &config.CacheSession{}
@@ -178,11 +243,18 @@ func Completions(r *ghttp.Request) {
 	if teamId != "" {
 		reqHeader["ChatGPT-Account-ID"] = teamId
 	}
-	resp, err := g.Client().SetHeaderMap(reqHeader).Post(ctx, config.CHATPROXY+"/v1/chat/completions", reqJson)
+	resp, err := g.Client().SetHeaderMap(reqHeader).Post(ctx, config.CHATPROXY+"/v1/chat/completions", req)
 	if err != nil {
 		g.Log().Error(ctx, "g.Client().Post error: ", err)
 		r.Response.Status = 500
-		r.Response.WriteJson(gjson.New(`{"detail": "internal server error"}`))
+		r.Response.WriteJson(g.Map{
+			"error": g.Map{
+				"message": "Server is busy, please try again later|500",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    "server_busy",
+			},
+		})
 		return
 	}
 	defer resp.Close()
@@ -195,25 +267,47 @@ func Completions(r *ghttp.Request) {
 		})
 		isReturn = false
 		go backendapi.RefreshSession(email)
-		r.Response.WriteStatus(401, resp.ReadAllString())
+		// r.Response.WriteStatus(401, resp.ReadAllString())
+		r.Response.Status = 500
+		r.Response.WriteJson(g.Map{
+			"error": g.Map{
+				"message": "Server is busy, please try again later|" + gconv.String(resp.StatusCode),
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    "server_busy",
+			},
+		})
 		return
 	}
 	if resp.StatusCode == 429 {
 		resStr := resp.ReadAllString()
-
 		clears_in = gjson.New(resStr).Get("detail.clears_in").Int()
-
-		if clears_in > 0 {
-			g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==429", resStr)
-
-			r.Response.WriteStatusExit(429, resStr)
-			return
-		} else {
-			g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==429", resStr)
-
-			r.Response.WriteStatusExit(429, resStr)
-			return
-		}
+		g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==429", resStr)
+		r.Response.Status = 500
+		r.Response.WriteJson(g.Map{
+			"error": g.Map{
+				"message": "Server is busy, please try again later|429",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    "server_busy",
+			},
+		})
+		return
+	}
+	if resp.StatusCode == 413 {
+		contentType := resp.Header.Get("Content-Type")
+		resStr := resp.ReadAllString()
+		g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==413", contentType, realModel, promptTokens, resStr)
+		r.Response.Status = 400
+		r.Response.WriteJson(g.Map{
+			"error": g.Map{
+				"message": "The message you submitted was too long, please reload the conversation and submit something shorter.",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    "message_length_exceeds_limit",
+			},
+		})
+		return
 	}
 	if resp.StatusCode == 403 {
 		contentType := resp.Header.Get("Content-Type")
@@ -230,13 +324,38 @@ func Completions(r *ghttp.Request) {
 			go backendapi.RefreshSession(email)
 		}
 
-		r.Response.WriteStatusExit(403, resp.ReadAllString())
+		r.Response.Status = 500
+		r.Response.WriteJson(g.Map{
+			"error": g.Map{
+				"message": "Server is busy, please try again later|403",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    "server_busy",
+			},
+		})
 		return
 
 	}
+	if resp.StatusCode == 500 {
+		resStr := resp.ReadAllString()
+		g.Log().Error(ctx, emailWithTeamId, "resp.StatusCode==500", resStr)
+		detail := gjson.New(resStr).Get("detail").String()
+		if gstr.Contains(detail, "Sorry! We've encountered an issue with repetitive patterns in your prompt. Please try again with a different prompt.") {
+			r.Response.Status = 400
+			r.Response.WriteJson(g.Map{
+				"error": g.Map{
+					"message": "Sorry! We've encountered an issue with repetitive patterns in your prompt. Please try again with a different prompt.",
+					"type":    "invalid_request_error",
+					"param":   nil,
+					"code":    "repetitive_patterns",
+				},
+			})
+			return
+		}
+	}
 	// 如果返回结果不是200
 	if resp.StatusCode != 200 {
-		g.Log().Error(ctx, "resp.StatusCode: ", resp.StatusCode)
+		g.Log().Error(ctx, "resp.StatusCode: ", resp.StatusCode, resp.ReadAllString())
 		r.Response.Status = resp.StatusCode
 		if resp.Header.Get("Content-Type") == "application/json" {
 			r.Response.WriteJson(gjson.New(resp.ReadAllString()))
@@ -250,13 +369,18 @@ func Completions(r *ghttp.Request) {
 
 	// 流式返回
 	if gstr.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
-		r.Response.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-		r.Response.Header().Set("Cache-Control", "no-cache")
-		r.Response.Header().Set("Connection", "keep-alive")
+		if isStream {
+			r.Response.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+			r.Response.Header().Set("Cache-Control", "no-cache")
+			r.Response.Header().Set("Connection", "keep-alive")
+		} else {
+			r.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
+		}
 		modelSlug := ""
 
 		decoder := eventsource.NewDecoder(resp.Body)
-		defer decoder.Decode()
+		defer decoder.Decode() // 释放资源
+		fullMessage := ""
 
 		for {
 			event, err := decoder.Decode()
@@ -273,20 +397,40 @@ func Completions(r *ghttp.Request) {
 				continue
 			}
 			if text == "[DONE]" {
-				r.Response.Writeln("data: " + text + "\n")
-				r.Response.Flush()
+				if isStream {
+					r.Response.Writeln("data: " + text + "\n")
+					r.Response.Flush()
+				}
 				continue
 			}
 			respJson := gjson.New(text)
-
+			content := respJson.Get("choices.0.delta.content").String()
+			if content != "" {
+				fullMessage += content
+			}
 			replayModel := respJson.Get("model").String()
 			if replayModel != "" {
 				modelSlug = replayModel
 			}
-			respJson.Set("model", reqModel)
-
-			r.Response.Writeln("data: " + respJson.String() + "\n")
-			r.Response.Flush()
+			if isStream {
+				respJson.Set("model", reqModel)
+				r.Response.Writeln("data: " + respJson.String() + "\n")
+				r.Response.Flush()
+			}
+		}
+		if !isStream {
+			// g.Log().Info(ctx, fullMessage, CountTokens(fullMessage))
+			apiNonStreamResp := gjson.New(ApiRespStr)
+			apiNonStreamResp.Set("choices.0.message.content", fullMessage)
+			apiNonStreamResp.Set("model", reqModel)
+			apiNonStreamResp.Set("id", "chatcmpl-"+gconv.String(time.Now().UnixNano()))
+			apiNonStreamResp.Set("created", time.Now().Unix())
+			promptTokens := CountTokens(fullQuestion)
+			apiNonStreamResp.Set("usage.prompt_tokens", promptTokens)
+			completionTokens := CountTokens(fullMessage)
+			apiNonStreamResp.Set("usage.completion_tokens", completionTokens)
+			apiNonStreamResp.Set("usage.total_tokens", promptTokens+completionTokens)
+			r.Response.WriteJson(apiNonStreamResp)
 		}
 
 		if realModel != "text-davinci-002-render-sha" && realModel != "auto" && modelSlug == "text-davinci-002-render-sha" {
@@ -296,20 +440,6 @@ func Completions(r *ghttp.Request) {
 			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "完成会话")
 		}
 		r.ExitAll()
-		return
-
-	} else {
-		respJson := gjson.New(resp.ReadAllString())
-		modelSlug := respJson.Get("model").String()
-		respJson.Set("model", reqModel)
-		r.Response.WriteJson(respJson)
-		if realModel != "text-davinci-002-render-sha" && realModel != "auto" && modelSlug == "text-davinci-002-render-sha" {
-			isPlusInvalid = true
-
-			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "PLUS失效")
-		} else {
-			g.Log().Info(ctx, userToken, "使用", emailWithTeamId, realModel, "->", modelSlug, "完成会话")
-		}
 		return
 	}
 
