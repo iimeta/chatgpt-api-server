@@ -179,10 +179,15 @@ func Completions(r *ghttp.Request) {
 			emailWithTeamId, ok = config.PlusSet.Pop()
 			g.Log().Info(ctx, emailWithTeamId, ok)
 			if !ok {
-				g.Log().Error(ctx, "Get email from set error")
-				r.Response.Status = 502
+				g.Log().Error(ctx, "Get email from plusset error")
+				r.Response.Status = 429
 				r.Response.WriteJson(g.Map{
-					"detail": "Server is busy, please try again later|502",
+					"error": g.Map{
+						"message": "Server is busy, please try again later",
+						"type":    "invalid_request_error",
+						"param":   "plusset",
+						"code":    "server_busy",
+					},
 				})
 				return
 			}
@@ -198,9 +203,14 @@ func Completions(r *ghttp.Request) {
 		emailWithTeamId, ok = config.NormalSet.Pop()
 		if !ok {
 			g.Log().Error(ctx, "Get email from set error")
-			r.Response.Status = 500
+			r.Response.Status = 429
 			r.Response.WriteJson(g.Map{
-				"detail": "Server is busy, please try again later",
+				"error": g.Map{
+					"message": "Server is busy, please try again later",
+					"type":    "invalid_request_error",
+					"param":   "normalset",
+					"code":    "server_busy",
+				},
 			})
 			return
 		}
