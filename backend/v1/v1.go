@@ -14,6 +14,7 @@ func init() {
 	v1Group.POST("/chat/completions", chat.Completions)
 	v1Group.POST("/chat/gpt4v", chat.Gpt4v)
 	v1Group.POST("/chat/gpt4v-mobile", chat.Gpt4v)
+	v1Group.GET("/models", Models)
 
 }
 
